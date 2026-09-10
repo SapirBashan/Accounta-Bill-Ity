@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-retro-bg: #FAF7F2;
+  --color-retro-card: #EAE6DB;
+  --color-retro-border: #1F2937;
+  --color-retro-green: #94A884;
+  --color-retro-green-light: #D9E2D0;
+  --color-retro-terracotta: #E07A5F;
+  --color-retro-yellow: #F4EA8A;
+
+  --shadow-retro: 3px 3px 0px 0px #1F2937;
+  --shadow-retro-lg: 4px 4px 0px 0px #1F2937;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: #FAF7F2;
+  color: #1F2937;
+  font-family: inherit;
+}
