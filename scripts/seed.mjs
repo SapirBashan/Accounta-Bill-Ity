@@ -32,11 +32,12 @@ const categories = [
   { name: 'קוסמטיקה', type: 'variable_expense', group_name: 'חיוניות', default_budget: 150 },
   { name: 'סופר פארם', type: 'variable_expense', group_name: 'חיוניות', default_budget: 200 },
   { name: 'מסעדות / בילויים', type: 'variable_expense', group_name: 'מותרות', default_budget: 0 },
+  { name: 'חיתולים', type: 'variable_expense', group_name: 'ילדים', default_budget: 0 },
+  { name: 'חדר כושר', type: 'fixed_expense', group_name: 'בריאות', default_budget: 0 },
 
   // Income (הכנסות)
-  { name: 'משכורת ספיר', type: 'income', group_name: 'הכנסות', default_budget: 0 },
-  { name: 'משכורת עמליה', type: 'income', group_name: 'הכנסות', default_budget: 0 },
-  { name: 'הכנסה נוספת', type: 'income', group_name: 'הכנסות', default_budget: 0 },
+  { name: 'משכורת', type: 'income', group_name: 'הכנסות', default_budget: 0 },
+  { name: 'הכנסות נוספות', type: 'income', group_name: 'הכנסות', default_budget: 0 },
 ];
 
 async function runSeed() {

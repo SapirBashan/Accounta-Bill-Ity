@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Menu, User, LogOut, Check, Shield, Plus, Settings, Calendar } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { Menu, User, LogOut, Check, Plus, Settings, Calendar } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
-import { getHouseholdMembers, addHouseholdMember, HouseholdMember } from '@/actions/members';
+import { getHouseholdMembers, inviteHouseholdMember, HouseholdMember } from '@/actions/members';
 
-const supabase = createClient(
+const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
@@ -16,8 +16,10 @@ export default function HeaderMenu() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [activePayer, setActivePayer] = useState<string>('');
-  const [newMemberName, setNewMemberName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteError, setInviteError] = useState('');
   const [showAddInput, setShowAddInput] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
 
   const loadMembers = useCallback(async () => {
@@ -55,16 +57,32 @@ export default function HeaderMenu() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMemberName.trim()) return;
-    await addHouseholdMember(newMemberName);
-    setNewMemberName('');
+    if (!inviteEmail.trim()) return;
+
+    try {
+      setInviteError('');
+      await inviteHouseholdMember(inviteEmail);
+      setInviteEmail('');
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : 'שגיאה בשליחת ההזמנה');
+      return;
+    }
+
     setShowAddInput(false);
     await loadMembers();
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+    setSigningOut(true);
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setSigningOut(false);
+      setInviteError('לא ניתן להתנתק כרגע. נסו שוב.');
+      return;
+    }
+
+    router.replace('/login');
     router.refresh();
   };
 
@@ -125,10 +143,11 @@ export default function HeaderMenu() {
               {showAddInput && (
                 <form onSubmit={handleAddMember} className="flex gap-1 mb-2">
                   <input
-                    type="text"
-                    placeholder="שם משתמש..."
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
+                    type="email"
+                    required
+                    placeholder="אימייל של המשתמש..."
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
                     className="w-full p-1.5 bg-slate-50 border-2 border-retro-border rounded-lg text-xs font-bold outline-none"
                   />
                   <button type="submit" className="px-2 bg-retro-green border-2 border-retro-border rounded-lg text-xs font-black">
@@ -136,6 +155,8 @@ export default function HeaderMenu() {
                   </button>
                 </form>
               )}
+
+              {inviteError && <p className="text-[10px] font-bold text-retro-terracotta mb-2">{inviteError}</p>}
 
               <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto p-1">
                 {members.map((m) => (
@@ -160,9 +181,10 @@ export default function HeaderMenu() {
             {/* Sign Out */}
             <button
               onClick={handleSignOut}
+              disabled={signingOut}
               className="w-full py-2 bg-retro-terracotta text-white font-black text-sm border-[3px] border-retro-border rounded-xl shadow-[2px_2px_0px_0px_#1F2937] flex items-center justify-center gap-2 hover:bg-retro-terracotta/90 active:translate-y-0.5 transition-all"
             >
-              <LogOut size={16} /> התנתק מהמערכת
+              <LogOut size={16} /> {signingOut ? 'מתנתק...' : 'התנתק מהמערכת'}
             </button>
           </div>
         </>

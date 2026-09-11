@@ -29,8 +29,19 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh auth token session on every request
-  await supabase.auth.getUser();
+  // Refresh auth token session on every request and protect all app routes.
+  const { data: { user } } = await supabase.auth.getUser();
+  const isPublicRoute = request.nextUrl.pathname === '/login' || request.nextUrl.pathname.startsWith('/auth/');
+
+  if (!user && !isPublicRoute) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (user && request.nextUrl.pathname === '/login') {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
 
   return supabaseResponse;
 }

@@ -1,34 +1,12 @@
 'use server';
 
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-
-async function getSupabaseServer() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {}
-        },
-      },
-    }
-  );
-}
+import { getSupabaseServer } from '@/lib/supabase-server';
 
 export type HouseholdMember = {
   id: string;
   name: string;
+  email?: string | null;
 };
 
 /**
@@ -42,7 +20,7 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
 
   const { data, error } = await supabase
     .from('household_members')
-    .select('id, name')
+    .select('id, name, email')
     .eq('user_id', authData.user.id)
     .order('created_at', { ascending: true });
 
@@ -57,7 +35,7 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
     const { data: seeded } = await supabase
       .from('household_members')
       .insert(defaults.map((m) => ({ name: m.name, user_id: authData.user.id })))
-      .select('id, name');
+      .select('id, name, email');
 
     return seeded || [];
   }
@@ -66,9 +44,9 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
 }
 
 /**
- * Add a new custom household member/payer
+ * Add a local payer label. This does not share data with another account.
  */
-export async function addHouseholdMember(name: string) {
+export async function inviteHouseholdMember(email: string) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
 
@@ -76,16 +54,18 @@ export async function addHouseholdMember(name: string) {
     throw new Error('חובה להתחבר למערכת כדי להוסיף משתמש');
   }
 
-  if (!name.trim()) return;
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return;
 
   const { error } = await supabase.from('household_members').insert({
     user_id: authData.user.id,
-    name: name.trim(),
+    name: normalizedEmail.split('@')[0],
+    email: normalizedEmail,
   });
 
   if (error) {
     console.error('Failed to add member:', error.message);
-    throw new Error(error.message);
+    throw new Error('לא ניתן לשלוח את ההזמנה. בדקו את כתובת האימייל ונסו שוב.');
   }
 
   revalidatePath('/add');

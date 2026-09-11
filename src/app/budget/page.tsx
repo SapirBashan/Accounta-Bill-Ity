@@ -1,32 +1,62 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Copy, CheckCircle2 } from 'lucide-react';
-import { getMonthlyBudgets, updateCategoryBudget, copyLastMonthBudgets } from '@/actions/budget';
+import { Copy, CheckCircle2, Plus, Minus } from 'lucide-react';
+import {
+  getCategoryCatalog,
+  getMonthlyBudgets,
+  updateCategoryBudget,
+  copyLastMonthBudgets,
+  setCategoryActive,
+  createCategory,
+} from '@/actions/budget';
+import { addIncome } from '@/actions/transactions';
 
 type BudgetItem = {
   category_id: string;
   category_name: string;
   group_name: string;
+  type: string;
   planned_amount: number;
+};
+
+type CategoryOption = {
+  id: string;
+  name: string;
+  group_name: string;
+  type: string;
+  active: boolean;
 };
 
 export default function BudgetPlanningPage() {
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
   const [loading, setLoading] = useState(true); // Automatically true on first load
   const [copiedMsg, setCopiedMsg] = useState(false);
+  const [categoryCatalog, setCategoryCatalog] = useState<CategoryOption[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryGroup, setNewCategoryGroup] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState<'fixed_expense' | 'variable_expense' | 'income'>('variable_expense');
+  const [categoryError, setCategoryError] = useState('');
+  const [incomeCategoryId, setIncomeCategoryId] = useState('');
+  const [incomeAmount, setIncomeAmount] = useState('');
+  const [incomeError, setIncomeError] = useState('');
 
   const currentMonth = new Date().toISOString().slice(0, 7);
 
   // 1. Standalone fetch function (No useCallback needed)
   const fetchBudgets = async () => {
-    const data = await getMonthlyBudgets(currentMonth);
-    setBudgets(data as BudgetItem[]);
+    const [budgetData, catalogData] = await Promise.all([
+      getMonthlyBudgets(currentMonth),
+      getCategoryCatalog(),
+    ]);
+    setBudgets(budgetData as BudgetItem[]);
+    setCategoryCatalog(catalogData as CategoryOption[]);
     setLoading(false); // Async setState is perfectly fine
   };
 
   // 2. Simple useEffect without synchronous state updates
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchBudgets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth]);
@@ -42,6 +72,40 @@ export default function BudgetPlanningPage() {
     await updateCategoryBudget(categoryId, currentMonth, amount);
   };
 
+  const handleCategoryToggle = async (categoryId: string, active: boolean) => {
+    await setCategoryActive(categoryId, active);
+    setCategoryCatalog((prev) =>
+      prev.map((category) => (category.id === categoryId ? { ...category, active } : category))
+    );
+    await fetchBudgets();
+  };
+
+  const handleCreateCategory = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setCategoryError('');
+    try {
+      await createCategory(newCategoryName, newCategoryGroup, newCategoryType);
+      setNewCategoryName('');
+      setNewCategoryGroup('');
+      await fetchBudgets();
+      setCategoryCatalog(await getCategoryCatalog() as CategoryOption[]);
+    } catch (error) {
+      setCategoryError(error instanceof Error ? error.message : 'לא ניתן להוסיף קטגוריה');
+    }
+  };
+
+  const handleAddIncome = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIncomeError('');
+    try {
+      await addIncome(incomeCategoryId, Number(incomeAmount), `${currentMonth}-01`);
+      setIncomeAmount('');
+      await fetchBudgets();
+    } catch (error) {
+      setIncomeError(error instanceof Error ? error.message : 'לא ניתן להוסיף הכנסה');
+    }
+  };
+
   const handleCopyLastMonth = async () => {
     setLoading(true); // Allowed here because it's inside an event handler
     await copyLastMonthBudgets(currentMonth);
@@ -50,14 +114,19 @@ export default function BudgetPlanningPage() {
     setTimeout(() => setCopiedMsg(false), 3000);
   };
 
-  const totalPlanned = budgets.reduce((sum, item) => sum + (Number(item.planned_amount) || 0), 0);
+  const totalPlanned = budgets
+    .filter((item) => item.type !== 'income')
+    .reduce((sum, item) => sum + (Number(item.planned_amount) || 0), 0);
+  const totalIncomePlanned = budgets
+    .filter((item) => item.type === 'income')
+    .reduce((sum, item) => sum + (Number(item.planned_amount) || 0), 0);
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-300">
-      <div className="flex justify-between items-start">
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-black text-retro-border">תכנון תקציב חודשי 📋</h1>
-          <p className="text-xs font-bold text-retro-border/70 mt-0.5">קביעת היעדים וההוצאות הצפויות</p>
+          <h1 className="text-2xl font-black text-retro-border">תקציב</h1>
+          <p className="text-xs font-bold text-retro-border/70 mt-0.5">יעדים, הכנסות וקטגוריות</p>
         </div>
 
         <button
@@ -74,15 +143,27 @@ export default function BudgetPlanningPage() {
         </div>
       )}
 
-      <div className="bg-retro-green border-[3px] border-retro-border rounded-3xl p-4 shadow-retro flex justify-between items-center">
-        <span className="font-black text-sm text-retro-border">סה"כ תקציב מתוכנן לחודש:</span>
+      <div className="grid grid-cols-2 gap-3">
+      <div className="bg-retro-green border-[3px] border-retro-border rounded-2xl p-3 shadow-retro flex justify-between items-center">
+        <span className="font-black text-sm text-retro-border">סה&quot;כ הוצאות מתוכננות:</span>
         <span className="text-2xl font-black text-retro-border" dir="ltr">
           ₪{totalPlanned.toLocaleString()}
         </span>
       </div>
 
-      <div className="bg-white border-[3px] border-retro-border rounded-3xl p-4 shadow-retro space-y-3">
-        <h3 className="font-black text-base text-retro-border mb-2">פירוט קטגוריות</h3>
+      <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-3 shadow-retro flex justify-between items-center">
+        <span className="font-black text-sm text-retro-border">סה&quot;כ הכנסות מתוכננות:</span>
+        <span className="text-2xl font-black text-retro-border" dir="ltr">
+          ₪{totalIncomePlanned.toLocaleString()}
+        </span>
+      </div>
+      </div>
+
+      <div className="bg-white border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-2">
+        <div className="flex justify-between items-center">
+          <h3 className="font-black text-base text-retro-border">קטגוריות פעילות</h3>
+          <span className="text-xs font-bold text-retro-border/50">הגדר יעד</span>
+        </div>
 
         {loading ? (
           <p className="text-center py-4 font-bold text-retro-border/50">טוען נתוני תקציב...</p>
@@ -90,11 +171,13 @@ export default function BudgetPlanningPage() {
           budgets.map((item) => (
             <div
               key={item.category_id}
-              className="flex justify-between items-center p-2.5 bg-retro-bg border-2 border-retro-border rounded-xl"
+              className="flex justify-between items-center gap-3 p-2 bg-retro-bg border-2 border-retro-border rounded-xl"
             >
               <div>
                 <h4 className="font-black text-sm text-retro-border">{item.category_name}</h4>
-                <span className="text-[10px] font-bold text-retro-border/60">{item.group_name}</span>
+                <span className="text-[10px] font-bold text-retro-border/60">
+                  {item.type === 'income' ? 'הכנסה' : item.group_name}
+                </span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -103,7 +186,7 @@ export default function BudgetPlanningPage() {
                   value={item.planned_amount}
                   onChange={(e) => handleBudgetChange(item.category_id, e.target.value)}
                   onBlur={() => handleSaveAmount(item.category_id, item.planned_amount)}
-                  className="w-24 p-1.5 bg-white border-2 border-retro-border rounded-lg text-left font-black text-sm outline-none"
+                  className="w-20 p-1.5 bg-white border-2 border-retro-border rounded-lg text-left font-black text-sm outline-none"
                   dir="ltr"
                 />
                 <span className="text-xs font-black text-retro-border">₪</span>
@@ -111,6 +194,98 @@ export default function BudgetPlanningPage() {
             </div>
           ))
         )}
+      </div>
+
+      <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-3">
+        <h3 className="font-black text-base text-retro-border">הוספת הכנסה</h3>
+        <form onSubmit={handleAddIncome} className="grid gap-2">
+          <select
+            value={incomeCategoryId}
+            onChange={(event) => setIncomeCategoryId(event.target.value)}
+            required
+            className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+          >
+            <option value="">בחר סוג הכנסה</option>
+            {budgets.filter((item) => item.type === 'income').map((item) => (
+              <option key={item.category_id} value={item.category_id}>{item.category_name}</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={incomeAmount}
+            onChange={(event) => setIncomeAmount(event.target.value)}
+            placeholder="סכום הכנסה"
+            required
+            className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+            dir="ltr"
+          />
+          <button type="submit" className="w-full py-2 bg-retro-green border-2 border-retro-border rounded-lg font-black">
+            הוסף הכנסה
+          </button>
+          {incomeError && <p className="text-xs font-bold text-retro-terracotta">{incomeError}</p>}
+        </form>
+      </div>
+
+      <div className="bg-white border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-3">
+        <div>
+          <h3 className="font-black text-base text-retro-border">ניהול קטגוריות</h3>
+          <p className="text-xs font-bold text-retro-border/60 mt-0.5">הוסף קטגוריה אישית או הסר קטגוריה מהרשימה.</p>
+        </div>
+        <form onSubmit={handleCreateCategory} className="grid gap-2 border-b-2 border-retro-border/20 pb-3">
+          <input
+            value={newCategoryName}
+            onChange={(event) => setNewCategoryName(event.target.value)}
+            placeholder="שם קטגוריה חדשה"
+            required
+            className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+          />
+          <input
+            value={newCategoryGroup}
+            onChange={(event) => setNewCategoryGroup(event.target.value)}
+            placeholder="קבוצה, למשל ילדים או בריאות"
+            required
+            className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+          />
+          <div className="flex gap-2">
+            <select
+              value={newCategoryType}
+              onChange={(event) => setNewCategoryType(event.target.value as typeof newCategoryType)}
+              className="min-w-0 flex-1 p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+            >
+              <option value="variable_expense">הוצאה משתנה</option>
+              <option value="fixed_expense">הוצאה קבועה</option>
+              <option value="income">הכנסה</option>
+            </select>
+            <button type="submit" className="px-3 bg-retro-green border-2 border-retro-border rounded-lg font-black">
+              <Plus size={16} />
+            </button>
+          </div>
+          {categoryError && <p className="text-xs font-bold text-retro-terracotta">{categoryError}</p>}
+        </form>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {categoryCatalog.map((category) => (
+          <div key={category.id} className="flex justify-between items-center gap-2 p-2 bg-retro-bg border-2 border-retro-border rounded-xl">
+            <div>
+              <h4 className="font-black text-sm text-retro-border">{category.name}</h4>
+              <span className="text-[10px] font-bold text-retro-border/60">
+                {category.type === 'income' ? 'הכנסה' : category.group_name}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCategoryToggle(category.id, !category.active)}
+              className={`flex shrink-0 items-center gap-1 px-2 py-1.5 border-2 border-retro-border rounded-lg font-black text-xs ${
+                category.active ? 'bg-retro-terracotta/20' : 'bg-retro-green/30'
+              }`}
+            >
+              {category.active ? <Minus size={14} /> : <Plus size={14} />}
+              {category.active ? 'הסר' : 'הוסף'}
+            </button>
+          </div>
+        ))}
+        </div>
       </div>
     </div>
   );

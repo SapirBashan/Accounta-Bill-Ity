@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { addTransaction, getCategoryCardSummaries } from '@/actions/transactions';
 import { getHouseholdMembers, HouseholdMember } from '@/actions/members';
 
@@ -23,6 +24,8 @@ export default function QuickAddPage() {
   const [userName, setUserName] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const router = useRouter();
 
   const currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -48,7 +51,7 @@ export default function QuickAddPage() {
   }, [currentMonth]);
 
   const filteredCategories = categories.filter(
-    (c) => c.name.includes(search) || c.group_name.includes(search)
+    (c) => c.type !== 'income' && (c.name.includes(search) || c.group_name.includes(search))
   );
 
   const handleSave = async (e: React.FormEvent) => {
@@ -56,23 +59,29 @@ export default function QuickAddPage() {
     if (!selectedCat || !amount) return;
 
     setLoading(true);
-    await addTransaction({
-      category_id: selectedCat.id,
-      amount: parseFloat(amount),
-      date: new Date().toISOString().split('T')[0],
-      user_name: userName,
-      notes: notes || selectedCat.name,
-    });
+    setErrorMessage('');
 
-    // Refresh category spending
-    const updated = await getCategoryCardSummaries(currentMonth);
-    setCategories(updated);
+    try {
+      await addTransaction({
+        category_id: selectedCat.id,
+        amount: parseFloat(amount),
+        date: new Date().toISOString().split('T')[0],
+        user_name: userName,
+        notes: notes || selectedCat.name,
+      });
 
-    // Reset Form Modal
-    setLoading(false);
-    setSelectedCat(null);
-    setAmount('');
-    setNotes('');
+      const updated = await getCategoryCardSummaries(currentMonth);
+      setCategories(updated);
+      router.refresh();
+
+      setSelectedCat(null);
+      setAmount('');
+      setNotes('');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'לא ניתן לשמור את התנועה');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -104,7 +113,9 @@ export default function QuickAddPage() {
             <button
               key={cat.id}
               onClick={() => setSelectedCat(cat)}
-              className="bg-white border-2 border-retro-border rounded-2xl p-3 shadow-retro text-right flex flex-col justify-between hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+              className={`border-2 border-retro-border rounded-2xl p-3 shadow-retro text-right flex flex-col justify-between hover:-translate-y-0.5 active:translate-y-0.5 transition-all ${
+                'bg-white'
+              }`}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="font-black text-sm text-retro-border line-clamp-1">{cat.name}</span>
@@ -129,6 +140,12 @@ export default function QuickAddPage() {
           );
         })}
       </div>
+
+      {errorMessage && (
+        <div className="bg-retro-terracotta/20 border-2 border-retro-border rounded-xl p-3 text-sm font-bold text-retro-border">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Quick Add Modal */}
       {selectedCat && (
@@ -172,7 +189,9 @@ export default function QuickAddPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-retro-border mb-1">סכום הוצאה (₪)</label>
+                <label className="block text-xs font-black text-retro-border mb-1">
+                  סכום הוצאה (₪)
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -202,7 +221,7 @@ export default function QuickAddPage() {
                 disabled={loading}
                 className="w-full py-3.5 bg-retro-green text-retro-border font-black border-2 border-retro-border rounded-xl shadow-retro hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
               >
-                {loading ? 'שומר...' : 'אשר והוסף תנועה 🚀'}
+                {loading ? 'שומר...' : 'אשר והוסף הוצאה'}
               </button>
             </form>
           </div>
