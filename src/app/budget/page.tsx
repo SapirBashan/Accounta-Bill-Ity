@@ -53,8 +53,12 @@ export default function BudgetPlanningPage() {
       getMonthlyBudgets(currentMonth),
       getCategoryCatalog(),
     ]);
-    setBudgets(budgetData as BudgetItem[]);
-    setCategoryCatalog(catalogData as CategoryOption[]);
+    const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
+    setBudgets((budgetData as BudgetItem[]).filter((item) => !hiddenIds.includes(item.category_id)));
+    setCategoryCatalog((catalogData as CategoryOption[]).map((category) => ({
+      ...category,
+      active: !hiddenIds.includes(category.id) && category.active,
+    })));
     setLoading(false); // Async setState is perfectly fine
   };
 
@@ -77,12 +81,13 @@ export default function BudgetPlanningPage() {
   };
 
   const handleReorder = async (items: BudgetItem[]) => {
-    const categoryType = items[0]?.type;
+    const reorderedById = new Map(items.map((item) => [item.category_id, item]));
     setBudgets((previous) => {
       let reorderedIndex = 0;
       return previous.map((item) => {
-        if (item.type !== categoryType) return item;
-        return items[reorderedIndex++];
+        if (!reorderedById.has(item.category_id)) return item;
+        const nextItem = items[reorderedIndex++];
+        return nextItem || item;
       });
     });
     await reorderCategories(items.map((item) => item.category_id));
@@ -90,9 +95,17 @@ export default function BudgetPlanningPage() {
 
   const handleCategoryToggle = async (categoryId: string, active: boolean) => {
     await setCategoryActive(categoryId, active);
+    const storedIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
+    const nextHiddenIds = active
+      ? storedIds.filter((id) => id !== categoryId)
+      : storedIds.includes(categoryId) ? storedIds : [...storedIds, categoryId];
+    localStorage.setItem('hidden_category_ids', JSON.stringify(nextHiddenIds));
     setCategoryCatalog((prev) =>
       prev.map((category) => (category.id === categoryId ? { ...category, active } : category))
     );
+    setBudgets((previous) => active
+      ? previous
+      : previous.filter((item) => item.category_id !== categoryId));
     await fetchBudgets();
   };
 
@@ -119,7 +132,7 @@ export default function BudgetPlanningPage() {
   };
 
   const totalPlanned = budgets
-    .filter((item) => item.type !== 'income')
+    .filter((item) => item && item.type !== 'income')
     .reduce((sum, item) => sum + (Number(item.planned_amount) || 0), 0);
 
   return (

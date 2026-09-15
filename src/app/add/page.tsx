@@ -45,7 +45,8 @@ export default function QuickAddPage() {
     async function loadData() {
       // 1. Load Category Summaries
       const cardData = await getCategoryCardSummaries(currentMonth);
-      setCategories(cardData);
+      const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
+      setCategories(cardData.filter((category) => !hiddenIds.includes(category.id)));
 
       // 2. Load Household Members
       const memberList = await getHouseholdMembers();

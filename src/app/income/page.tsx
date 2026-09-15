@@ -39,7 +39,8 @@ export default function IncomePage() {
 
   const loadData = async () => {
     const data = await getIncomePageData(currentMonth);
-    setCategories(data.categories);
+    const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
+    setCategories(data.categories.filter((category) => !hiddenIds.includes(category.id)));
     setTransactions(data.transactions as IncomeTransaction[]);
     setCategoryId((previous) => previous || data.categories[0]?.id || '');
   };
@@ -83,6 +84,10 @@ export default function IncomePage() {
 
   const handleRemoveSource = async (categoryId: string) => {
     await setCategoryActive(categoryId, false);
+    const storedIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
+    if (!storedIds.includes(categoryId)) {
+      localStorage.setItem('hidden_category_ids', JSON.stringify([...storedIds, categoryId]));
+    }
     await loadData();
   };
 
