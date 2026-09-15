@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
+import { getUserCategories } from '@/lib/category-data';
 
 /**
  * Fetch the user's planned budgets for one month.
@@ -12,18 +13,7 @@ export async function getMonthlyBudgets(monthStr: string) {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
 
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .neq('name', 'משכורת עמליה');
-  const { data: preferences } = await supabase
-    .from('user_category_preferences')
-    .select('category_id, active')
-    .eq('user_id', authData.user.id);
-  const safePreferences = preferences || [];
-  const inactiveCategoryIds = new Set(
-    safePreferences.filter((preference) => !preference.active).map((preference) => preference.category_id)
-  );
+  const categories = await getUserCategories(supabase, authData.user.id);
   const { data: monthly } = await supabase
     .from('monthly_budgets')
     .select('*')
@@ -35,7 +25,7 @@ export async function getMonthlyBudgets(monthStr: string) {
     monthlyMap[m.category_id] = Number(m.planned_amount);
   });
 
-  return (categories || []).filter((cat) => !inactiveCategoryIds.has(cat.id)).map((cat) => ({
+  return categories.filter((cat) => cat.active).map((cat) => ({
     category_id: cat.id,
     category_name: cat.name,
     group_name: cat.group_name,
@@ -49,23 +39,7 @@ export async function getCategoryCatalog() {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
 
-  const [{ data: categories }, { data: preferences }] = await Promise.all([
-    supabase
-      .from('categories')
-      .select('id, name, group_name, type, default_budget')
-      .neq('name', 'משכורת עמליה')
-      .order('group_name'),
-    supabase
-      .from('user_category_preferences')
-      .select('category_id, active')
-      .eq('user_id', authData.user.id),
-  ]);
-  const preferenceMap = new Map((preferences || []).map((preference) => [preference.category_id, preference.active]));
-
-  return (categories || []).map((category) => ({
-    ...category,
-    active: preferenceMap.get(category.id) ?? true,
-  }));
+  return getUserCategories(supabase, authData.user.id);
 }
 
 export async function setCategoryActive(categoryId: string, active: boolean) {
@@ -79,6 +53,33 @@ export async function setCategoryActive(categoryId: string, active: boolean) {
   );
   if (error && !error.message.includes('user_category_preferences')) {
     throw new Error(error.message);
+  }
+
+  revalidatePath('/budget');
+  revalidatePath('/add');
+  revalidatePath('/');
+}
+
+export async function reorderCategories(categoryIds: string[]) {
+  const supabase = await getSupabaseServer();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) throw new Error('חובה להתחבר למערכת כדי לסדר קטגוריות');
+
+  const categories = await getUserCategories(supabase, authData.user.id);
+  const allowedIds = new Set(categories.map((category) => category.id));
+  const orderedIds = categoryIds.filter((categoryId) => allowedIds.has(categoryId));
+  const updates = orderedIds.map((categoryId, sort_order) => ({
+    user_id: authData.user.id,
+    category_id: categoryId,
+    active: categories.find((category) => category.id === categoryId)?.active ?? true,
+    sort_order,
+  }));
+
+  if (updates.length > 0) {
+    const { error } = await supabase
+      .from('user_category_preferences')
+      .upsert(updates, { onConflict: 'user_id,category_id' });
+    if (error) throw new Error(error.message);
   }
 
   revalidatePath('/budget');
@@ -150,21 +151,33 @@ export async function createCategory(name: string, groupName: string, type: 'fix
   const trimmedGroup = groupName.trim();
   if (!trimmedName || !trimmedGroup) throw new Error('יש למלא שם קטגוריה וקבוצה');
 
-  const { error } = await supabase.from('categories').insert({
-    name: trimmedName,
-    group_name: trimmedGroup,
-    type,
-    default_budget: 0,
-    owner_id: authData.user.id,
-  });
-  if (error) {
-    const { error: legacyError } = await supabase.from('categories').insert({
+  const { data: createdCategory, error } = await supabase
+    .from('categories')
+    .insert({
       name: trimmedName,
       group_name: trimmedGroup,
       type,
       default_budget: 0,
-    });
-    if (legacyError) throw new Error(legacyError.message);
+      owner_id: authData.user.id,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+
+  if (createdCategory) {
+    const { data: lastPreference } = await supabase
+      .from('user_category_preferences')
+      .select('sort_order')
+      .eq('user_id', authData.user.id)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    await supabase.from('user_category_preferences').upsert({
+      user_id: authData.user.id,
+      category_id: createdCategory.id,
+      active: true,
+      sort_order: (lastPreference?.sort_order ?? -1) + 1,
+    }, { onConflict: 'user_id,category_id' });
   }
 
   revalidatePath('/budget');

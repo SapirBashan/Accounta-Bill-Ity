@@ -1,0 +1,102 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { GripVertical } from 'lucide-react';
+
+type SortableCategoryListProps<T> = {
+  items: T[];
+  onReorder: (items: T[]) => void;
+  children: (item: T) => React.ReactNode;
+  getId?: (item: T) => string;
+};
+
+export default function SortableCategoryList<T>({
+  items,
+  onReorder,
+  children,
+  getId = (item) => (item as { id: string }).id,
+}: SortableCategoryListProps<T>) {
+  const [orderedItems, setOrderedItems] = useState(items);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchDragging = useRef(false);
+
+  useEffect(() => {
+    // The parent replaces items after a server refresh or a saved reorder.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrderedItems(items);
+  }, [items]);
+
+  const moveItem = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const sourceIndex = orderedItems.findIndex((item) => getId(item) === sourceId);
+    const targetIndex = orderedItems.findIndex((item) => getId(item) === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const nextItems = [...orderedItems];
+    const [movedItem] = nextItems.splice(sourceIndex, 1);
+    nextItems.splice(targetIndex, 0, movedItem);
+    setOrderedItems(nextItems);
+    onReorder(nextItems);
+  };
+
+  const handleTouchStart = (event: React.TouchEvent, id: string) => {
+    touchTimer.current = setTimeout(() => {
+      touchDragging.current = true;
+      setDraggingId(id);
+    }, 450);
+    event.currentTarget.setAttribute('aria-pressed', 'true');
+  };
+
+  const handleTouchMove = (event: React.TouchEvent) => {
+    if (!touchDragging.current) return;
+    event.preventDefault();
+    const touch = event.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)
+      ?.closest<HTMLElement>('[data-category-id]');
+    if (target?.dataset.categoryId && draggingId) {
+      moveItem(draggingId, target.dataset.categoryId);
+    }
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    touchDragging.current = false;
+    setDraggingId(null);
+    event.currentTarget.setAttribute('aria-pressed', 'false');
+  };
+
+  return (
+    <div className="space-y-2">
+      {orderedItems.map((item) => (
+        <div
+          key={getId(item)}
+          data-category-id={getId(item)}
+          draggable
+          onDragStart={() => setDraggingId(getId(item))}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={() => {
+            if (draggingId) moveItem(draggingId, getId(item));
+            setDraggingId(null);
+          }}
+          onDragEnd={() => setDraggingId(null)}
+          className={draggingId === getId(item) ? 'opacity-50' : ''}
+        >
+          <div className="flex items-stretch gap-2">
+            <button
+              type="button"
+              draggable
+              aria-label="גרור קטגוריה"
+              onTouchStart={(event) => handleTouchStart(event, getId(item))}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="touch-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
+            >
+              <GripVertical size={18} />
+            </button>
+            <div className="min-w-0 flex-1">{children(item)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

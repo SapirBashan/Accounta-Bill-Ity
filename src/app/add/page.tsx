@@ -5,6 +5,9 @@ import { Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { addTransaction, getCategoryCardSummaries } from '@/actions/transactions';
 import { getHouseholdMembers, HouseholdMember } from '@/actions/members';
+import { reorderCategories } from '@/actions/budget';
+import SortableCategoryList from '@/components/SortableCategoryList';
+import CategoryCard from '@/components/CategoryCard';
 
 type CategoryCard = {
   id: string;
@@ -113,41 +116,21 @@ export default function QuickAddPage() {
       </div>
 
       {/* Category Grid */}
-      <div className="grid grid-cols-2 gap-3 pt-1">
-        {filteredCategories.map((cat) => {
-          const isOver = cat.spent > cat.budget && cat.budget > 0;
-          const percent = cat.budget > 0 ? Math.round((cat.spent / cat.budget) * 100) : 0;
-
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCat(cat)}
-              className={`border-2 border-retro-border rounded-2xl p-3 shadow-retro text-right flex flex-col justify-between hover:-translate-y-0.5 active:translate-y-0.5 transition-all ${
-                'bg-white'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="font-black text-sm text-retro-border line-clamp-1">{cat.name}</span>
-                <span className="text-[10px] font-bold bg-retro-bg px-2 py-0.5 border border-retro-border rounded-lg">
-                  {cat.group_name}
-                </span>
-              </div>
-
-              <div className="mt-2">
-                <div className="flex justify-between text-xs font-black text-retro-border/80 mb-1" dir="ltr">
-                  <span>₪{cat.spent}</span>
-                  <span className="text-retro-border/50">/ ₪{cat.budget}</span>
-                </div>
-                <div className="w-full bg-retro-bg h-2 rounded-full border border-retro-border overflow-hidden">
-                  <div
-                    className={`h-full ${isOver ? 'bg-retro-terracotta' : 'bg-retro-green'}`}
-                    style={{ width: `${Math.min(percent, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </button>
-          );
-        })}
+      <div className="pt-1">
+        <SortableCategoryList
+          items={filteredCategories}
+          onReorder={async (items) => reorderCategories(items.map((item) => item.id))}
+        >
+          {(cat) => (
+            <CategoryCard
+              name={cat.name}
+              groupName={cat.group_name}
+              spent={cat.spent}
+              budget={cat.budget}
+              onSelect={() => setSelectedCat(cat)}
+            />
+          )}
+        </SortableCategoryList>
       </div>
 
       {errorMessage && (

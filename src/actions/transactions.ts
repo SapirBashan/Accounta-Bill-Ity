@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
+import { getUserCategories } from '@/lib/category-data';
 
 function getMonthDateRange(monthYearStr: string) {
   const [year, month] = monthYearStr.split('-').map(Number);
@@ -93,17 +94,9 @@ export async function addIncome(categoryId: string, amount: number, date: string
  */
 export async function getCategories() {
   const supabase = await getSupabaseServer();
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('group_name', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching categories:', error);
-    return [];
-  }
-
-  return data || [];
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return [];
+  return getUserCategories(supabase, authData.user.id);
 }
 
 /**
@@ -235,18 +228,9 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
   if (!authData.user) return [];
   const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
 
-  // 1. Fetch all categories
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .neq('name', 'משכורת עמליה')
-    .order('group_name', { ascending: true });
-  const { data: preferences } = await supabase
-    .from('user_category_preferences')
-    .select('category_id, active')
-    .eq('user_id', authData.user.id);
-  const inactiveCategoryIds = new Set(
-    (preferences || []).filter((preference) => !preference.active).map((preference) => preference.category_id)
+  // 1. Fetch this user's active categories in their saved order.
+  const categories = (await getUserCategories(supabase, authData.user.id)).filter(
+    (category) => category.active,
   );
 
   // 2. Fetch transactions for the current month
@@ -278,7 +262,7 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
   });
 
   // Combine the data
-  return (categories || []).filter((cat) => !inactiveCategoryIds.has(cat.id)).map((cat) => ({
+  return categories.map((cat) => ({
     id: cat.id,
     name: cat.name,
     group_name: cat.group_name,
@@ -296,14 +280,9 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
   if (!authData.user) return { totalBudget: 0, totalSpent: 0, categoriesBudget: [] };
   const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
 
-  const { data: categories, error: catError } = await supabase
-    .from('categories')
-    .select('id, name, group_name, type')
-    .neq('type', 'income');
-
-  if (catError || !categories) {
-    return { totalBudget: 0, totalSpent: 0, categoriesBudget: [] };
-  }
+  const categories = (await getUserCategories(supabase, authData.user.id)).filter(
+    (category) => category.active && category.type !== 'income',
+  );
 
   let query = supabase
     .from('transactions')

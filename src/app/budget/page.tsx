@@ -10,8 +10,11 @@ import {
   copyLastMonthBudgets,
   setCategoryActive,
   createCategory,
+  reorderCategories,
 } from '@/actions/budget';
 import { addIncome } from '@/actions/transactions';
+import SortableCategoryList from '@/components/SortableCategoryList';
+import CategoryCard from '@/components/CategoryCard';
 
 type BudgetItem = {
   category_id: string;
@@ -75,6 +78,18 @@ export default function BudgetPlanningPage() {
 
   const handleSaveAmount = async (categoryId: string, amount: number) => {
     await updateCategoryBudget(categoryId, currentMonth, amount);
+  };
+
+  const handleReorder = async (items: BudgetItem[]) => {
+    const categoryType = items[0]?.type;
+    setBudgets((previous) => {
+      let reorderedIndex = 0;
+      return previous.map((item) => {
+        if (item.type !== categoryType) return item;
+        return items[reorderedIndex++];
+      });
+    });
+    await reorderCategories(items.map((item) => item.category_id));
   };
 
   const handleCategoryToggle = async (categoryId: string, active: boolean) => {
@@ -166,43 +181,49 @@ export default function BudgetPlanningPage() {
 
       <div className="bg-white border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-2">
         <div className="flex justify-between items-center">
-          <h3 className="font-black text-base text-retro-border">קטגוריות פעילות</h3>
+          <h3 className="font-black text-base text-retro-border">הוצאות</h3>
           <span className="text-xs font-bold text-retro-border/50">הגדר יעד</span>
         </div>
 
         {loading ? (
           <p className="text-center py-4 font-bold text-retro-border/50">טוען נתוני תקציב...</p>
         ) : (
-          budgets.map((item) => (
-            <div
-              key={item.category_id}
-              className="flex justify-between items-center gap-3 p-2 bg-retro-bg border-2 border-retro-border rounded-xl"
-            >
-              <div>
-                <h4 className="font-black text-sm text-retro-border">{item.category_name}</h4>
-                <span className="text-[10px] font-bold text-retro-border/60">
-                  {item.type === 'income' ? 'הכנסה' : item.group_name}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={item.planned_amount}
-                  onChange={(e) => handleBudgetChange(item.category_id, e.target.value)}
-                  onBlur={() => handleSaveAmount(item.category_id, item.planned_amount)}
-                  className="w-20 p-1.5 bg-white border-2 border-retro-border rounded-lg text-left font-black text-sm outline-none"
-                  dir="ltr"
-                />
-                <span className="text-xs font-black text-retro-border">₪</span>
-              </div>
-            </div>
-          ))
+          <SortableCategoryList
+            items={budgets.filter((item) => item.type !== 'income')}
+            onReorder={handleReorder}
+            getId={(item) => item.category_id}
+          >
+            {(item) => (
+              <CategoryCard
+                name={item.category_name}
+                groupName={item.group_name}
+                plannedAmount={item.planned_amount}
+                onBudgetChange={(value) => handleBudgetChange(item.category_id, value)}
+                onBudgetBlur={() => handleSaveAmount(item.category_id, item.planned_amount)}
+              />
+            )}
+          </SortableCategoryList>
         )}
       </div>
 
       <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-3">
-        <h3 className="font-black text-base text-retro-border">הוספת הכנסה</h3>
+        <h3 className="font-black text-base text-retro-border">הכנסות</h3>
+        <p className="text-xs font-bold text-retro-border/60">הכנסות נשמרות בנפרד מתקציב ההוצאות.</p>
+        <SortableCategoryList
+          items={budgets.filter((item) => item.type === 'income')}
+          onReorder={handleReorder}
+          getId={(item) => item.category_id}
+        >
+          {(item) => (
+            <CategoryCard
+              name={item.category_name}
+              groupName="הכנסה"
+              plannedAmount={item.planned_amount}
+              onBudgetChange={(value) => handleBudgetChange(item.category_id, value)}
+              onBudgetBlur={() => handleSaveAmount(item.category_id, item.planned_amount)}
+            />
+          )}
+        </SortableCategoryList>
         <form onSubmit={handleAddIncome} className="grid gap-2">
           <select
             value={incomeCategoryId}
