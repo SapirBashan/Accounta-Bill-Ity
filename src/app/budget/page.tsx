@@ -39,7 +39,7 @@ export default function BudgetPlanningPage() {
   const [categoryCatalog, setCategoryCatalog] = useState<CategoryOption[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryGroup, setNewCategoryGroup] = useState('');
-  const [newCategoryType, setNewCategoryType] = useState<'fixed_expense' | 'variable_expense' | 'income'>('variable_expense');
+  const [newCategoryType, setNewCategoryType] = useState<'fixed_expense' | 'variable_expense'>('variable_expense');
   const [categoryError, setCategoryError] = useState('');
 
   const selectedMonth = searchParams.get('month');
@@ -55,10 +55,12 @@ export default function BudgetPlanningPage() {
     ]);
     const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
     setBudgets((budgetData as BudgetItem[]).filter((item) => !hiddenIds.includes(item.category_id)));
-    setCategoryCatalog((catalogData as CategoryOption[]).map((category) => ({
+    setCategoryCatalog((catalogData as CategoryOption[])
+      .filter((category) => category.type !== 'income')
+      .map((category) => ({
       ...category,
       active: !hiddenIds.includes(category.id) && category.active,
-    })));
+      })));
     setLoading(false); // Async setState is perfectly fine
   };
 
@@ -117,7 +119,8 @@ export default function BudgetPlanningPage() {
       setNewCategoryName('');
       setNewCategoryGroup('');
       await fetchBudgets();
-      setCategoryCatalog(await getCategoryCatalog() as CategoryOption[]);
+      setCategoryCatalog((await getCategoryCatalog() as CategoryOption[])
+        .filter((category) => category.type !== 'income'));
     } catch (error) {
       setCategoryError(error instanceof Error ? error.message : 'לא ניתן להוסיף קטגוריה');
     }
@@ -234,7 +237,7 @@ export default function BudgetPlanningPage() {
             <div>
               <h4 className="font-black text-sm text-retro-border">{category.name}</h4>
               <span className="text-[10px] font-bold text-retro-border/60">
-                {category.type === 'income' ? 'הכנסה' : category.group_name}
+                {category.group_name}
               </span>
             </div>
             <button

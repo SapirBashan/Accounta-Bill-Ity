@@ -112,7 +112,7 @@ export default function IncomePage() {
       <div className="bg-white border-[3px] border-retro-border rounded-2xl p-4 shadow-retro">
         <h2 className="font-black text-base text-retro-border mb-3">הוספת הכנסה</h2>
         {categories.length === 0 ? (
-          <p className="text-sm font-bold text-retro-border/60">הוסף קטגוריית הכנסה בעמוד התקציב.</p>
+          <p className="text-sm font-bold text-retro-border/60">הוסף מקור הכנסה באזור ניהול המקורות.</p>
         ) : (
           <form onSubmit={handleSubmit} className="grid gap-2">
             <label className="text-xs font-black text-retro-border">קטגוריה</label>
