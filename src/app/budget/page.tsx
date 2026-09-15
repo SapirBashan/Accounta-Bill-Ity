@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Copy, CheckCircle2, Plus, Minus } from 'lucide-react';
 import {
   getCategoryCatalog,
@@ -29,6 +30,7 @@ type CategoryOption = {
 };
 
 export default function BudgetPlanningPage() {
+  const searchParams = useSearchParams();
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
   const [loading, setLoading] = useState(true); // Automatically true on first load
   const [copiedMsg, setCopiedMsg] = useState(false);
@@ -41,7 +43,10 @@ export default function BudgetPlanningPage() {
   const [incomeAmount, setIncomeAmount] = useState('');
   const [incomeError, setIncomeError] = useState('');
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const selectedMonth = searchParams.get('month');
+  const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+    ? selectedMonth
+    : new Date().toISOString().slice(0, 7);
 
   // 1. Standalone fetch function (No useCallback needed)
   const fetchBudgets = async () => {

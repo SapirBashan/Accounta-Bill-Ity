@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const HEBREW_MONTHS = [
   'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
@@ -19,13 +20,32 @@ export default function MonthSelector({
   currentYear = new Date().getFullYear(),
   onChange,
 }: MonthSelectorProps) {
-  const [month, setMonth] = useState<number>(currentMonth);
-  const [year, setYear] = useState<number>(currentYear);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selectedMonth = searchParams.get('month');
+  const initialMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+    ? Number(selectedMonth.slice(5, 7)) - 1
+    : currentMonth;
+  const initialYear = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+    ? Number(selectedMonth.slice(0, 4))
+    : currentYear;
+  const [month, setMonth] = useState<number>(initialMonth);
+  const [year, setYear] = useState<number>(initialYear);
 
   // Modal temporary state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempMonth, setTempMonth] = useState<number>(month);
   const [tempYear, setTempYear] = useState<number>(year);
+
+  const selectMonth = (newMonth: number, newYear: number) => {
+    setMonth(newMonth);
+    setYear(newYear);
+    onChange?.(newMonth, newYear);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('month', `${newYear}-${String(newMonth + 1).padStart(2, '0')}`);
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   const handlePrevMonth = () => {
     let newMonth = month - 1;
@@ -34,9 +54,7 @@ export default function MonthSelector({
       newMonth = 11;
       newYear -= 1;
     }
-    setMonth(newMonth);
-    setYear(newYear);
-    onChange?.(newMonth, newYear);
+    selectMonth(newMonth, newYear);
   };
 
   const handleNextMonth = () => {
@@ -46,9 +64,7 @@ export default function MonthSelector({
       newMonth = 0;
       newYear += 1;
     }
-    setMonth(newMonth);
-    setYear(newYear);
-    onChange?.(newMonth, newYear);
+    selectMonth(newMonth, newYear);
   };
 
   const openModal = () => {
@@ -58,10 +74,8 @@ export default function MonthSelector({
   };
 
   const handleConfirmModal = () => {
-    setMonth(tempMonth);
-    setYear(tempYear);
     setIsModalOpen(false);
-    onChange?.(tempMonth, tempYear);
+    selectMonth(tempMonth, tempYear);
   };
 
   return (

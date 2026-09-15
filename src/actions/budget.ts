@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 
 /**
- * Fetch monthly planned budgets merged with default category baseline
+ * Fetch the user's planned budgets for one month.
  */
 export async function getMonthlyBudgets(monthStr: string) {
   const supabase = await getSupabaseServer();
@@ -40,7 +40,7 @@ export async function getMonthlyBudgets(monthStr: string) {
     category_name: cat.name,
     group_name: cat.group_name,
     type: cat.type,
-    planned_amount: monthlyMap[cat.id] ?? cat.default_budget ?? 0,
+    planned_amount: monthlyMap[cat.id] ?? 0,
   }));
 }
 

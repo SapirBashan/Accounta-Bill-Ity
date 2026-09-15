@@ -284,7 +284,7 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
     group_name: cat.group_name,
     type: cat.type,
     spent: spentMap[cat.id] || 0,
-    budget: budgetMap[cat.id] ?? cat.default_budget ?? 0,
+    budget: budgetMap[cat.id] ?? 0,
   }));
 }
 /**
@@ -298,7 +298,7 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
 
   const { data: categories, error: catError } = await supabase
     .from('categories')
-    .select('id, name, group_name, budget_limit, type')
+    .select('id, name, group_name, type')
     .neq('type', 'income');
 
   if (catError || !categories) {
@@ -329,11 +329,21 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
     });
   }
 
+  const { data: budgets } = await supabase
+    .from('monthly_budgets')
+    .select('category_id, planned_amount')
+    .eq('user_id', authData.user.id)
+    .eq('month', startDate);
+  const budgetByCat: Record<string, number> = {};
+  (budgets || []).forEach((budget) => {
+    budgetByCat[budget.category_id] = Number(budget.planned_amount) || 0;
+  });
+
   const categoriesBudget: CategoryBudget[] = categories.map((c) => ({
     id: c.id,
     name: c.name,
     group_name: c.group_name,
-    budget_limit: Number(c.budget_limit) || 1500,
+    budget_limit: budgetByCat[c.id] || 0,
     spent: spentByCat[c.id] || 0,
   }));
 

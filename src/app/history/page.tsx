@@ -1,8 +1,16 @@
 import { getRecentTransactions, TransactionItem } from '@/actions/transactions';
 import { ShoppingBag, ArrowUpRight } from 'lucide-react';
 
-export default async function HistoryPage() {
-  const transactions: TransactionItem[] = await getRecentTransactions(50);
+type HistoryPageProps = {
+  searchParams: Promise<{ month?: string }>;
+};
+
+export default async function HistoryPage({ searchParams }: HistoryPageProps) {
+  const params = await searchParams;
+  const selectedMonth = /^\d{4}-\d{2}$/.test(params.month || '')
+    ? params.month
+    : new Date().toISOString().slice(0, 7);
+  const transactions: TransactionItem[] = await getRecentTransactions(50, selectedMonth);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500">

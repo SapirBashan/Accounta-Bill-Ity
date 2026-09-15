@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { addTransaction, getCategoryCardSummaries } from '@/actions/transactions';
 import { getHouseholdMembers, HouseholdMember } from '@/actions/members';
 
@@ -16,6 +16,7 @@ type CategoryCard = {
 };
 
 export default function QuickAddPage() {
+  const searchParams = useSearchParams();
   const [categories, setCategories] = useState<CategoryCard[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState<CategoryCard | null>(null);
@@ -27,7 +28,15 @@ export default function QuickAddPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const selectedMonth = searchParams.get('month');
+  const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+    ? selectedMonth
+    : new Date().toISOString().slice(0, 7);
+  const today = new Date();
+  const currentSystemMonth = today.toISOString().slice(0, 7);
+  const transactionDate = currentMonth === currentSystemMonth
+    ? today.toISOString().split('T')[0]
+    : `${currentMonth}-01`;
 
   useEffect(() => {
     async function loadData() {
@@ -65,7 +74,7 @@ export default function QuickAddPage() {
       await addTransaction({
         category_id: selectedCat.id,
         amount: parseFloat(amount),
-        date: new Date().toISOString().split('T')[0],
+        date: transactionDate,
         user_name: userName,
         notes: notes || selectedCat.name,
       });
