@@ -17,6 +17,3 @@ create policy user_category_preferences_private on public.user_category_preferen
 update public.categories
 set name = 'משכורת'
 where type = 'income' and name = 'משכורת ספיר';
-
-do $$
-);
