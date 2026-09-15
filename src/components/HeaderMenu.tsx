@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Menu, User, LogOut, Check, Plus, Settings, Calendar } from 'lucide-react';
+import { Menu, User, LogOut, Check, Plus, Settings, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import { getHouseholdMembers, inviteHouseholdMember, HouseholdMember } from '@/actions/members';
@@ -10,6 +10,11 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+const HEBREW_MONTHS = [
+  'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+  'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
+];
 
 export default function HeaderMenu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +25,14 @@ export default function HeaderMenu() {
   const [inviteError, setInviteError] = useState('');
   const [showAddInput, setShowAddInput] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  // Month Selector States
+  const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [tempMonth, setTempMonth] = useState<number>(selectedMonth);
+  const [tempYear, setTempYear] = useState<number>(selectedYear);
+
   const router = useRouter();
 
   const loadMembers = useCallback(async () => {
@@ -86,6 +99,20 @@ export default function HeaderMenu() {
     router.refresh();
   };
 
+  const openMonthPicker = () => {
+    setTempMonth(selectedMonth);
+    setTempYear(selectedYear);
+    setIsMonthModalOpen(true);
+  };
+
+  const handleConfirmMonth = () => {
+    setSelectedMonth(tempMonth);
+    setSelectedYear(tempYear);
+    setIsMonthModalOpen(false);
+    setIsOpen(false);
+    // You can trigger page re-fetch or state update here for the dashboard
+  };
+
   return (
     <div className="relative">
       {/* Hamburger Menu Button */}
@@ -97,6 +124,7 @@ export default function HeaderMenu() {
         <Menu size={24} />
       </button>
 
+      {/* Main Hamburger Dropdown */}
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
@@ -116,10 +144,19 @@ export default function HeaderMenu() {
 
             {/* Navigation Links */}
             <div className="space-y-2">
-              <button className="w-full flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-right border-2 border-transparent hover:border-retro-border/20">
-                <Calendar size={16} className="text-retro-border" />
-                <span className="text-sm font-bold text-retro-border">ממוצע שנתי</span>
+              <button 
+                onClick={openMonthPicker}
+                className="w-full flex items-center justify-between p-2.5 bg-retro-yellow/30 hover:bg-retro-yellow border-2 border-retro-border rounded-xl transition-all text-right shadow-retro-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar size={18} className="text-retro-border" />
+                  <span className="text-sm font-black text-retro-border">בחירת חודש</span>
+                </div>
+                <span className="text-xs font-black bg-white px-2 py-0.5 rounded-md border border-retro-border">
+                  {HEBREW_MONTHS[selectedMonth]} {selectedYear}
+                </span>
               </button>
+
               <button className="w-full flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-right border-2 border-transparent hover:border-retro-border/20">
                 <Settings size={16} className="text-retro-border" />
                 <span className="text-sm font-bold text-retro-border">הגדרות חשבון</span>
@@ -188,6 +225,89 @@ export default function HeaderMenu() {
             </button>
           </div>
         </>
+      )}
+
+      {/* Month Selector Retro Modal */}
+      {isMonthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-retro-border/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white border-[4px] border-retro-border rounded-3xl p-5 shadow-[6px_6px_0px_0px_#1F2937] w-full max-w-xs space-y-4 dir-rtl text-right">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b-2 border-retro-border/20 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-retro-yellow border-2 border-retro-border rounded-xl">
+                  <Calendar size={18} className="text-retro-border" />
+                </div>
+                <h3 className="font-black text-base text-retro-border">בחירת חודש לתצוגה</h3>
+              </div>
+              <button
+                onClick={() => setIsMonthModalOpen(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg border-2 border-transparent hover:border-retro-border transition-all"
+              >
+                <X size={18} className="text-retro-border" />
+              </button>
+            </div>
+
+            {/* Year Selector Control */}
+            <div className="flex justify-between items-center bg-slate-50 p-2 rounded-xl border-2 border-retro-border">
+              <button
+                type="button"
+                onClick={() => setTempYear((y) => y - 1)}
+                className="p-1 bg-white border-2 border-retro-border rounded-lg shadow-retro-sm hover:bg-retro-yellow active:translate-y-0.5 font-black transition-all"
+              >
+                <ChevronRight size={18} className="text-retro-border" />
+              </button>
+              <span className="font-black text-base text-retro-border">{tempYear}</span>
+              <button
+                type="button"
+                onClick={() => setTempYear((y) => y + 1)}
+                className="p-1 bg-white border-2 border-retro-border rounded-lg shadow-retro-sm hover:bg-retro-yellow active:translate-y-0.5 font-black transition-all"
+              >
+                <ChevronLeft size={18} className="text-retro-border" />
+              </button>
+            </div>
+
+            {/* 12 Months Grid */}
+            <div className="grid grid-cols-3 gap-2">
+              {HEBREW_MONTHS.map((name, idx) => {
+                const isSelected = tempMonth === idx;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setTempMonth(idx)}
+                    className={`py-2 px-1 text-xs font-black rounded-xl border-2 border-retro-border transition-all ${
+                      isSelected
+                        ? 'bg-retro-yellow text-retro-border shadow-[2px_2px_0px_0px_#1F2937] scale-105'
+                        : 'bg-white text-retro-border/70 hover:bg-slate-50'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmMonth}
+                className="flex-1 py-2.5 bg-retro-green text-retro-border font-black text-sm border-2 border-retro-border rounded-xl shadow-[2px_2px_0px_0px_#1F2937] hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                אישור
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMonthModalOpen(false)}
+                className="py-2.5 px-4 bg-slate-100 text-retro-border font-black text-sm border-2 border-retro-border rounded-xl hover:bg-slate-200 transition-all"
+              >
+                ביטול
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
     </div>
   );
