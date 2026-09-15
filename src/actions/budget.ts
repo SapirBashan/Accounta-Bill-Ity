@@ -81,7 +81,9 @@ export async function reorderCategories(categoryIds: string[]) {
     const { error } = await supabase
       .from('user_category_preferences')
       .upsert(updates, { onConflict: 'user_id,category_id' });
-    if (error) throw new Error(error.message);
+    if (error && !error.message.includes('user_category_preferences')) {
+      throw new Error(error.message);
+    }
   }
 
   revalidatePath('/budget');

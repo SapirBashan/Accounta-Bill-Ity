@@ -101,26 +101,15 @@ export async function getIncomePageData(monthYearStr: string) {
   const categoryIds = categories.map((category) => category.id);
   if (categoryIds.length === 0) return { categories: [], transactions: [] };
 
-  const [{ data: budgets }, { data: transactions }] = await Promise.all([
-    supabase
-      .from('monthly_budgets')
-      .select('category_id, planned_amount')
-      .eq('user_id', authData.user.id)
-      .eq('month', startDate)
-      .in('category_id', categoryIds),
-    supabase
+  const { data: transactions } = await supabase
       .from('transactions')
       .select('id, category_id, amount, date, user_name, notes')
       .eq('user_id', authData.user.id)
       .in('category_id', categoryIds)
       .gte('date', startDate)
       .lt('date', nextMonth)
-      .order('date', { ascending: false }),
-  ]);
+      .order('date', { ascending: false });
 
-  const budgetMap = new Map(
-    (budgets || []).map((budget) => [budget.category_id, Number(budget.planned_amount) || 0]),
-  );
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
 
   return {
@@ -128,7 +117,6 @@ export async function getIncomePageData(monthYearStr: string) {
       id: category.id,
       name: category.name,
       group_name: category.group_name,
-      planned_amount: budgetMap.get(category.id) || 0,
     })),
     transactions: (transactions || []).map((transaction) => ({
       ...transaction,

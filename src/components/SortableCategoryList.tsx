@@ -10,13 +10,23 @@ type SortableCategoryListProps<T> = {
   getId?: (item: T) => string;
 };
 
+function uniqueItems<T>(items: T[], getId: (item: T) => string) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const id = getId(item);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 export default function SortableCategoryList<T>({
   items,
   onReorder,
   children,
   getId = (item) => (item as { id: string }).id,
 }: SortableCategoryListProps<T>) {
-  const [orderedItems, setOrderedItems] = useState(items);
+  const [orderedItems, setOrderedItems] = useState(() => uniqueItems(items, getId));
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragging = useRef(false);
@@ -24,7 +34,7 @@ export default function SortableCategoryList<T>({
   useEffect(() => {
     // The parent replaces items after a server refresh or a saved reorder.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrderedItems(items);
+    setOrderedItems(uniqueItems(items, getId));
   }, [items]);
 
   const moveItem = (sourceId: string, targetId: string) => {
@@ -67,7 +77,7 @@ export default function SortableCategoryList<T>({
 
   return (
     <div className="space-y-2">
-      {orderedItems.map((item) => (
+      {uniqueItems(orderedItems, getId).map((item) => (
         <div
           key={getId(item)}
           data-category-id={getId(item)}

@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, WalletCards } from 'lucide-react';
+import { Minus, Plus, WalletCards } from 'lucide-react';
 import { addIncome, getIncomePageData } from '@/actions/transactions';
+import { createCategory, setCategoryActive } from '@/actions/budget';
 
 type IncomeCategory = {
   id: string;
   name: string;
   group_name: string;
-  planned_amount: number;
 };
 
 type IncomeTransaction = {
@@ -34,6 +34,8 @@ export default function IncomePage() {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [sourceName, setSourceName] = useState('');
+  const [sourceError, setSourceError] = useState('');
 
   const loadData = async () => {
     const data = await getIncomePageData(currentMonth);
@@ -50,8 +52,6 @@ export default function IncomePage() {
   }, [currentMonth]);
 
   const totalIncome = transactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-  const plannedIncome = categories.reduce((sum, category) => sum + category.planned_amount, 0);
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!categoryId || !amount) return;
@@ -69,6 +69,23 @@ export default function IncomePage() {
     }
   };
 
+  const handleAddSource = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSourceError('');
+    try {
+      await createCategory(sourceName, 'הכנסות', 'income');
+      setSourceName('');
+      await loadData();
+    } catch (submitError) {
+      setSourceError(submitError instanceof Error ? submitError.message : 'לא ניתן להוסיף מקור הכנסה');
+    }
+  };
+
+  const handleRemoveSource = async (categoryId: string) => {
+    await setCategoryActive(categoryId, false);
+    await loadData();
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
       <div>
@@ -82,10 +99,6 @@ export default function IncomePage() {
         <div className="bg-retro-green border-[3px] border-retro-border rounded-2xl p-3 shadow-retro">
           <p className="text-xs font-black text-retro-border/70">הכנסות בפועל</p>
           <p className="text-2xl font-black text-retro-border" dir="ltr">₪{totalIncome.toLocaleString()}</p>
-        </div>
-        <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-3 shadow-retro">
-          <p className="text-xs font-black text-retro-border/70">מתוכנן</p>
-          <p className="text-2xl font-black text-retro-border" dir="ltr">₪{plannedIncome.toLocaleString()}</p>
         </div>
       </div>
 
@@ -126,6 +139,41 @@ export default function IncomePage() {
             {error && <p className="text-xs font-bold text-retro-terracotta">{error}</p>}
           </form>
         )}
+      </div>
+
+      <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-3">
+        <div>
+          <h2 className="font-black text-base text-retro-border">מקורות הכנסה</h2>
+          <p className="text-xs font-bold text-retro-border/60">ניהול מקורות ההכנסה מתבצע כאן בלבד.</p>
+        </div>
+        <form onSubmit={handleAddSource} className="flex gap-2">
+          <input
+            value={sourceName}
+            onChange={(event) => setSourceName(event.target.value)}
+            placeholder="שם מקור חדש"
+            required
+            className="min-w-0 flex-1 p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+          />
+          <button type="submit" className="px-3 bg-retro-green border-2 border-retro-border rounded-lg font-black">
+            <Plus size={16} />
+          </button>
+        </form>
+        {categories.map((category) => (
+          <div key={category.id} className="flex justify-between items-center gap-2 p-2 bg-white border-2 border-retro-border rounded-xl">
+            <div>
+              <p className="font-black text-sm">{category.name}</p>
+              <p className="text-[10px] font-bold text-retro-border/60">{category.group_name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleRemoveSource(category.id)}
+              className="flex items-center gap-1 px-2 py-1.5 border-2 border-retro-border rounded-lg font-black text-xs bg-retro-terracotta/20"
+            >
+              <Minus size={14} /> הסר
+            </button>
+          </div>
+        ))}
+        {sourceError && <p className="text-xs font-bold text-retro-terracotta">{sourceError}</p>}
       </div>
 
       <div className="bg-white border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-2">
