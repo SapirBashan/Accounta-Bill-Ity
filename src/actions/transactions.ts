@@ -85,6 +85,7 @@ export async function addIncome(categoryId: string, amount: number, date: string
   if (error) throw new Error(error.message);
 
   revalidatePath('/budget');
+  revalidatePath('/income');
   revalidatePath('/');
   revalidatePath('/history');
 }
@@ -94,23 +95,26 @@ export async function getIncomePageData(monthYearStr: string) {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { categories: [], transactions: [] };
 
-  const categories = (await getUserCategories(supabase, authData.user.id)).filter(
+  const allCategories = await getUserCategories(supabase, authData.user.id);
+  const categories = allCategories.filter(
     (category) => category.active && category.type === 'income',
   );
+  const incomeCategoryIds = allCategories
+    .filter((category) => category.type === 'income')
+    .map((category) => category.id);
   const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
-  const categoryIds = categories.map((category) => category.id);
-  if (categoryIds.length === 0) return { categories: [], transactions: [] };
+  if (incomeCategoryIds.length === 0) return { categories, transactions: [] };
 
   const { data: transactions } = await supabase
       .from('transactions')
       .select('id, category_id, amount, date, user_name, notes')
       .eq('user_id', authData.user.id)
-      .in('category_id', categoryIds)
+      .in('category_id', incomeCategoryIds)
       .gte('date', startDate)
       .lt('date', nextMonth)
       .order('date', { ascending: false });
 
-  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+  const categoryMap = new Map(allCategories.map((category) => [category.id, category]));
 
   return {
     categories: categories.map((category) => ({

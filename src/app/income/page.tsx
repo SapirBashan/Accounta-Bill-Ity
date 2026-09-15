@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Minus, Plus, WalletCards } from 'lucide-react';
 import { addIncome, getIncomePageData } from '@/actions/transactions';
 import { createCategory, setCategoryActive } from '@/actions/budget';
@@ -23,6 +23,7 @@ type IncomeTransaction = {
 
 export default function IncomePage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const selectedMonth = searchParams.get('month');
   const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
     ? selectedMonth
@@ -63,6 +64,7 @@ export default function IncomePage() {
       setAmount('');
       setNotes('');
       await loadData();
+      router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'לא ניתן להוסיף הכנסה');
     } finally {
