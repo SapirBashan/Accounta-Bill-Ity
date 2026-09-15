@@ -12,7 +12,6 @@ import {
   createCategory,
   reorderCategories,
 } from '@/actions/budget';
-import { addIncome } from '@/actions/transactions';
 import SortableCategoryList from '@/components/SortableCategoryList';
 import CategoryCard from '@/components/CategoryCard';
 
@@ -42,9 +41,6 @@ export default function BudgetPlanningPage() {
   const [newCategoryGroup, setNewCategoryGroup] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<'fixed_expense' | 'variable_expense' | 'income'>('variable_expense');
   const [categoryError, setCategoryError] = useState('');
-  const [incomeCategoryId, setIncomeCategoryId] = useState('');
-  const [incomeAmount, setIncomeAmount] = useState('');
-  const [incomeError, setIncomeError] = useState('');
 
   const selectedMonth = searchParams.get('month');
   const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
@@ -114,18 +110,6 @@ export default function BudgetPlanningPage() {
     }
   };
 
-  const handleAddIncome = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setIncomeError('');
-    try {
-      await addIncome(incomeCategoryId, Number(incomeAmount), `${currentMonth}-01`);
-      setIncomeAmount('');
-      await fetchBudgets();
-    } catch (error) {
-      setIncomeError(error instanceof Error ? error.message : 'לא ניתן להוסיף הכנסה');
-    }
-  };
-
   const handleCopyLastMonth = async () => {
     setLoading(true); // Allowed here because it's inside an event handler
     await copyLastMonthBudgets(currentMonth);
@@ -136,9 +120,6 @@ export default function BudgetPlanningPage() {
 
   const totalPlanned = budgets
     .filter((item) => item.type !== 'income')
-    .reduce((sum, item) => sum + (Number(item.planned_amount) || 0), 0);
-  const totalIncomePlanned = budgets
-    .filter((item) => item.type === 'income')
     .reduce((sum, item) => sum + (Number(item.planned_amount) || 0), 0);
 
   return (
@@ -163,18 +144,11 @@ export default function BudgetPlanningPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div>
       <div className="bg-retro-green border-[3px] border-retro-border rounded-2xl p-3 shadow-retro flex justify-between items-center">
         <span className="font-black text-sm text-retro-border">סה&quot;כ הוצאות מתוכננות:</span>
         <span className="text-2xl font-black text-retro-border" dir="ltr">
           ₪{totalPlanned.toLocaleString()}
-        </span>
-      </div>
-
-      <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-3 shadow-retro flex justify-between items-center">
-        <span className="font-black text-sm text-retro-border">סה&quot;כ הכנסות מתוכננות:</span>
-        <span className="text-2xl font-black text-retro-border" dir="ltr">
-          ₪{totalIncomePlanned.toLocaleString()}
         </span>
       </div>
       </div>
@@ -204,54 +178,6 @@ export default function BudgetPlanningPage() {
             )}
           </SortableCategoryList>
         )}
-      </div>
-
-      <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-3">
-        <h3 className="font-black text-base text-retro-border">הכנסות</h3>
-        <p className="text-xs font-bold text-retro-border/60">הכנסות נשמרות בנפרד מתקציב ההוצאות.</p>
-        <SortableCategoryList
-          items={budgets.filter((item) => item.type === 'income')}
-          onReorder={handleReorder}
-          getId={(item) => item.category_id}
-        >
-          {(item) => (
-            <CategoryCard
-              name={item.category_name}
-              groupName="הכנסה"
-              plannedAmount={item.planned_amount}
-              onBudgetChange={(value) => handleBudgetChange(item.category_id, value)}
-              onBudgetBlur={() => handleSaveAmount(item.category_id, item.planned_amount)}
-            />
-          )}
-        </SortableCategoryList>
-        <form onSubmit={handleAddIncome} className="grid gap-2">
-          <select
-            value={incomeCategoryId}
-            onChange={(event) => setIncomeCategoryId(event.target.value)}
-            required
-            className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
-          >
-            <option value="">בחר סוג הכנסה</option>
-            {budgets.filter((item) => item.type === 'income').map((item) => (
-              <option key={item.category_id} value={item.category_id}>{item.category_name}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={incomeAmount}
-            onChange={(event) => setIncomeAmount(event.target.value)}
-            placeholder="סכום הכנסה"
-            required
-            className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
-            dir="ltr"
-          />
-          <button type="submit" className="w-full py-2 bg-retro-green border-2 border-retro-border rounded-lg font-black">
-            הוסף הכנסה
-          </button>
-          {incomeError && <p className="text-xs font-bold text-retro-terracotta">{incomeError}</p>}
-        </form>
       </div>
 
       <div className="bg-white border-[3px] border-retro-border rounded-2xl p-4 shadow-retro space-y-3">

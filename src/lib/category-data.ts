@@ -29,6 +29,7 @@ export async function getUserCategories(
   const preferenceMap = new Map(
     (preferences || []).map((preference) => [preference.category_id, preference]),
   );
+  const hasPreferences = preferenceMap.size > 0;
 
   return (categories || [])
     .map((category) => {
@@ -39,7 +40,9 @@ export async function getUserCategories(
         group_name: category.group_name,
         type: category.type,
         default_budget: Number(category.default_budget) || 0,
-        active: preference?.active ?? false,
+        active: preference?.active ?? (
+          category.owner_id === userId || (!hasPreferences && category.owner_id === null)
+        ),
         sort_order: preference?.sort_order ?? Number.MAX_SAFE_INTEGER,
       };
     })
@@ -48,4 +51,28 @@ export async function getUserCategories(
       left.group_name.localeCompare(right.group_name) ||
       left.name.localeCompare(right.name),
     );
+}
+
+export async function ensureUserCategoryPreferences(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const { count } = await supabase
+    .from('user_category_preferences')
+    .select('category_id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  if (count && count > 0) return;
+
+  const categories = await getUserCategories(supabase, userId);
+  const defaults = categories.map((category, sort_order) => ({
+      user_id: userId,
+      category_id: category.id,
+      active: category.active,
+      sort_order,
+    }));
+  if (defaults.length > 0) {
+    await supabase
+      .from('user_category_preferences')
+      .upsert(defaults, { onConflict: 'user_id,category_id' });
+  }
 }

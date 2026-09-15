@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
-import { getUserCategories } from '@/lib/category-data';
+import { ensureUserCategoryPreferences, getUserCategories } from '@/lib/category-data';
 
 /**
  * Fetch the user's planned budgets for one month.
@@ -46,6 +46,7 @@ export async function setCategoryActive(categoryId: string, active: boolean) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) throw new Error('חובה להתחבר למערכת כדי לעדכן קטגוריות');
+  await ensureUserCategoryPreferences(supabase, authData.user.id);
 
   const { error } = await supabase.from('user_category_preferences').upsert(
     { user_id: authData.user.id, category_id: categoryId, active },
@@ -64,6 +65,7 @@ export async function reorderCategories(categoryIds: string[]) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) throw new Error('חובה להתחבר למערכת כדי לסדר קטגוריות');
+  await ensureUserCategoryPreferences(supabase, authData.user.id);
 
   const categories = await getUserCategories(supabase, authData.user.id);
   const allowedIds = new Set(categories.map((category) => category.id));
@@ -146,6 +148,7 @@ export async function createCategory(name: string, groupName: string, type: 'fix
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) throw new Error('חובה להתחבר למערכת כדי להוסיף קטגוריה');
+  await ensureUserCategoryPreferences(supabase, authData.user.id);
 
   const trimmedName = name.trim();
   const trimmedGroup = groupName.trim();

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, Plus, History, PieChart } from 'lucide-react';
+import { LayoutGrid, Plus, History, PieChart, WalletCards } from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -12,6 +12,7 @@ export default function BottomNav() {
     { href: '/add', label: 'הוסף', icon: Plus },
     { href: '/history', label: 'היסטוריה', icon: History },
     { href: '/budget', label: 'תקציב', icon: PieChart },
+    { href: '/income', label: 'הכנסות', icon: WalletCards },
   ];
 
   return (
