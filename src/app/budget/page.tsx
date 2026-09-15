@@ -31,6 +31,8 @@ type CategoryOption = {
   active: boolean;
 };
 
+const EXPENSE_GROUPS = ['דיור', 'חיוניות', 'תחבורה', 'ילדים', 'בריאות', 'מותרות', 'אחר'];
+
 export default function BudgetPlanningPage() {
   const searchParams = useSearchParams();
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
@@ -39,6 +41,7 @@ export default function BudgetPlanningPage() {
   const [categoryCatalog, setCategoryCatalog] = useState<CategoryOption[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryGroup, setNewCategoryGroup] = useState('');
+  const [customCategoryGroup, setCustomCategoryGroup] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<'fixed_expense' | 'variable_expense'>('variable_expense');
   const [categoryError, setCategoryError] = useState('');
 
@@ -115,9 +118,11 @@ export default function BudgetPlanningPage() {
     event.preventDefault();
     setCategoryError('');
     try {
-      await createCategory(newCategoryName, newCategoryGroup, newCategoryType);
+      const groupName = newCategoryGroup === 'אחר' ? customCategoryGroup : newCategoryGroup;
+      await createCategory(newCategoryName, groupName, newCategoryType);
       setNewCategoryName('');
       setNewCategoryGroup('');
+      setCustomCategoryGroup('');
       await fetchBudgets();
       setCategoryCatalog((await getCategoryCatalog() as CategoryOption[])
         .filter((category) => category.type !== 'income'));
@@ -209,13 +214,24 @@ export default function BudgetPlanningPage() {
             required
             className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
           />
-          <input
+          <select
             value={newCategoryGroup}
             onChange={(event) => setNewCategoryGroup(event.target.value)}
-            placeholder="קבוצה, למשל ילדים או בריאות"
             required
             className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
-          />
+          >
+            <option value="">בחר קבוצה</option>
+            {EXPENSE_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+          </select>
+          {newCategoryGroup === 'אחר' && (
+            <input
+              value={customCategoryGroup}
+              onChange={(event) => setCustomCategoryGroup(event.target.value)}
+              placeholder="שם קבוצה חדשה"
+              required
+              className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
+            />
+          )}
           <div className="flex gap-2">
             <select
               value={newCategoryType}
