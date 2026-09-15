@@ -208,7 +208,6 @@ export default function BudgetPlanningPage() {
             >
               <option value="variable_expense">הוצאה משתנה</option>
               <option value="fixed_expense">הוצאה קבועה</option>
-              <option value="income">הכנסה</option>
             </select>
             <button type="submit" className="px-3 bg-retro-green border-2 border-retro-border rounded-lg font-black">
               <Plus size={16} />

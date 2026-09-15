@@ -154,7 +154,7 @@ export async function createCategory(name: string, groupName: string, type: 'fix
   const trimmedGroup = groupName.trim();
   if (!trimmedName || !trimmedGroup) throw new Error('יש למלא שם קטגוריה וקבוצה');
 
-  const { data: createdCategory, error } = await supabase
+  let { data: createdCategory, error } = await supabase
     .from('categories')
     .insert({
       name: trimmedName,
@@ -165,6 +165,15 @@ export async function createCategory(name: string, groupName: string, type: 'fix
     })
     .select('id')
     .single();
+  if (error?.message.includes('owner_id')) {
+    const legacyInsert = await supabase
+      .from('categories')
+      .insert({ name: trimmedName, group_name: trimmedGroup, type, default_budget: 0 })
+      .select('id')
+      .single();
+    createdCategory = legacyInsert.data;
+    error = legacyInsert.error;
+  }
   if (error) throw new Error(error.message);
 
   if (createdCategory) {
@@ -175,12 +184,21 @@ export async function createCategory(name: string, groupName: string, type: 'fix
       .order('sort_order', { ascending: false })
       .limit(1)
       .maybeSingle();
-    await supabase.from('user_category_preferences').upsert({
+    const preference = {
       user_id: authData.user.id,
       category_id: createdCategory.id,
       active: true,
       sort_order: (lastPreference?.sort_order ?? -1) + 1,
-    }, { onConflict: 'user_id,category_id' });
+    };
+    const { error: preferenceError } = await supabase
+      .from('user_category_preferences')
+      .upsert(preference, { onConflict: 'user_id,category_id' });
+    if (preferenceError) {
+      await supabase.from('user_category_preferences').upsert(
+        { user_id: preference.user_id, category_id: preference.category_id, active: true },
+        { onConflict: 'user_id,category_id' },
+      );
+    }
   }
 
   revalidatePath('/budget');

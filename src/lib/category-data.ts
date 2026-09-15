@@ -8,23 +8,51 @@ export type UserCategory = {
   default_budget: number;
   active: boolean;
   sort_order: number;
+  owner_id?: string | null;
 };
 
 export async function getUserCategories(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<UserCategory[]> {
-  const [{ data: categories }, { data: preferences }] = await Promise.all([
-    supabase
+  const categoriesQuery = supabase
       .from('categories')
       .select('id, name, group_name, type, default_budget, owner_id')
       .or(`owner_id.is.null,owner_id.eq.${userId}`)
-      .neq('name', 'משכורת עמליה'),
-    supabase
+      .neq('name', 'משכורת עמליה');
+  const preferencesQuery = supabase
       .from('user_category_preferences')
       .select('category_id, active, sort_order')
-      .eq('user_id', userId),
+      .eq('user_id', userId);
+  const [{ data: categoryData, error: categoryError }, { data: preferenceData, error: preferenceError }] = await Promise.all([
+    categoriesQuery,
+    preferencesQuery,
   ]);
+  const { data: legacyCategories } = categoryError
+    ? await supabase
+      .from('categories')
+      .select('id, name, group_name, type, default_budget')
+      .neq('name', 'משכורת עמליה')
+    : { data: null };
+  const { data: legacyPreferences } = preferenceError
+    ? await supabase
+      .from('user_category_preferences')
+      .select('category_id, active')
+      .eq('user_id', userId)
+    : { data: null };
+  const categories = (categoryData || legacyCategories || []) as Array<{
+    id: string;
+    name: string;
+    group_name: string;
+    type: string;
+    default_budget: number;
+    owner_id?: string | null;
+  }>;
+  const preferences = (preferenceData || legacyPreferences || []) as Array<{
+    category_id: string;
+    active: boolean;
+    sort_order?: number;
+  }>;
 
   const preferenceMap = new Map(
     (preferences || []).map((preference) => [preference.category_id, preference]),
@@ -41,9 +69,10 @@ export async function getUserCategories(
         type: category.type,
         default_budget: Number(category.default_budget) || 0,
         active: preference?.active ?? (
-          category.owner_id === userId || (!hasPreferences && category.owner_id === null)
+          category.owner_id === userId || (!hasPreferences && !category.owner_id)
         ),
         sort_order: preference?.sort_order ?? Number.MAX_SAFE_INTEGER,
+        owner_id: category.owner_id ?? null,
       };
     })
     .sort((left, right) =>
@@ -71,8 +100,14 @@ export async function ensureUserCategoryPreferences(
       sort_order,
     }));
   if (defaults.length > 0) {
-    await supabase
+    const { error } = await supabase
       .from('user_category_preferences')
       .upsert(defaults, { onConflict: 'user_id,category_id' });
+    if (error) {
+      await supabase.from('user_category_preferences').upsert(
+        defaults.map(({ user_id, category_id, active }) => ({ user_id, category_id, active })),
+        { onConflict: 'user_id,category_id' },
+      );
+    }
   }
 }
