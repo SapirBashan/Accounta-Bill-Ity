@@ -132,7 +132,7 @@ export default function SettingsPage() {
   };
 
   const currentMember = members.find((member) => member.email?.toLowerCase() === email.toLowerCase());
-  const canLeaveGroup = Boolean(currentMember && !currentMember.id.startsWith('current-'));
+  const canLeaveGroup = Boolean(currentMember?.isHouseholdMember);
 
   return (
     <div className="space-y-4 pb-6 animate-in fade-in duration-300">

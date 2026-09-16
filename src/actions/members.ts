@@ -7,6 +7,7 @@ export type HouseholdMember = {
   id: string;
   name: string;
   email?: string | null;
+  isHouseholdMember?: boolean;
 };
 
 /**
@@ -29,6 +30,13 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
   }
 
   const currentEmail = authData.user.email?.trim().toLowerCase();
+  const { data: ownMembership } = currentEmail
+    ? await supabase
+      .from('household_members')
+      .select('id')
+      .eq('email', currentEmail)
+      .maybeSingle()
+    : { data: null };
   const emailMembers = (data || []).filter((member) => member.email);
 
   if (currentEmail && !emailMembers.some((member) => member.email?.toLowerCase() === currentEmail)) {
@@ -41,6 +49,7 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
 
   return emailMembers.map((member) => ({
     ...member,
+      isHouseholdMember: member.id === ownMembership?.id,
       name: member.email?.split('@')[0] || member.name,
   }));
 }
@@ -79,9 +88,12 @@ export async function leaveHousehold() {
     throw new Error('חובה להתחבר למערכת כדי לעזוב קבוצה');
   }
 
-  const { error } = await supabase.rpc('leave_household');
+  const { data: removed, error } = await supabase.rpc('leave_household');
   if (error) {
     throw new Error(error.message);
+  }
+  if (removed === false) {
+    throw new Error('המשתמש אינו חבר בקבוצה');
   }
 
   revalidatePath('/');
