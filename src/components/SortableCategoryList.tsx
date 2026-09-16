@@ -28,7 +28,7 @@ export default function SortableCategoryList<T>({
 }: SortableCategoryListProps<T>) {
   const [orderedItems, setOrderedItems] = useState(() => uniqueItems(items, getId));
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const touchDragging = useRef(false);
+  const draggingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // The parent replaces items after a server refresh or a saved reorder.
@@ -48,27 +48,30 @@ export default function SortableCategoryList<T>({
     onReorder(nextItems);
   };
 
-  const handleTouchStart = (event: React.TouchEvent, id: string) => {
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>, id: string) => {
     event.preventDefault();
-    touchDragging.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingIdRef.current = id;
     setDraggingId(id);
     event.currentTarget.setAttribute('aria-pressed', 'true');
   };
 
-  const handleTouchMove = (event: React.TouchEvent) => {
-    if (!touchDragging.current) return;
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!draggingIdRef.current) return;
 
     event.preventDefault();
-    const touch = event.touches[0];
-    const target = document.elementFromPoint(touch.clientX, touch.clientY)
+    const target = document.elementFromPoint(event.clientX, event.clientY)
       ?.closest<HTMLElement>('[data-category-id]');
-    if (target?.dataset.categoryId && draggingId) {
-      moveItem(draggingId, target.dataset.categoryId);
+    if (target?.dataset.categoryId) {
+      moveItem(draggingIdRef.current, target.dataset.categoryId);
     }
   };
 
-  const handleTouchEnd = (event: React.TouchEvent) => {
-    touchDragging.current = false;
+  const handlePointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    draggingIdRef.current = null;
     setDraggingId(null);
     event.currentTarget.setAttribute('aria-pressed', 'false');
   };
@@ -79,32 +82,16 @@ export default function SortableCategoryList<T>({
         <div
           key={getId(item)}
           data-category-id={getId(item)}
-          onDragOver={(event) => {
-            event.preventDefault();
-            if (draggingId) moveItem(draggingId, getId(item));
-          }}
-          onDrop={() => {
-            if (draggingId) moveItem(draggingId, getId(item));
-            setDraggingId(null);
-          }}
           className={draggingId === getId(item) ? 'opacity-50' : ''}
         >
           <div className="flex items-stretch gap-2">
             <button
               type="button"
-              draggable
               aria-label="גרור קטגוריה"
-              onDragStart={(event) => {
-                event.stopPropagation();
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', getId(item));
-                setDraggingId(getId(item));
-              }}
-              onDragEnd={() => setDraggingId(null)}
-              onTouchStart={(event) => handleTouchStart(event, getId(item))}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onTouchCancel={handleTouchEnd}
+              onPointerDown={(event) => handlePointerDown(event, getId(item))}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerEnd}
               className="touch-none select-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
             >
               <GripVertical size={18} />
