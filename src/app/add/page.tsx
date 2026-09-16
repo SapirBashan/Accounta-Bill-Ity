@@ -121,6 +121,7 @@ function QuickAddPageContent() {
         <SortableCategoryList
           items={filteredCategories}
           onReorder={async (items) => reorderCategories(items.map((item) => item.id))}
+          className="gap-2"
         >
           {(cat) => (
             <CategoryCard
@@ -128,6 +129,7 @@ function QuickAddPageContent() {
               groupName={cat.group_name}
               spent={cat.spent}
               budget={cat.budget}
+              compact
               onSelect={() => setSelectedCat(cat)}
             />
           )}
@@ -143,7 +145,7 @@ function QuickAddPageContent() {
       {/* Quick Add Modal */}
       {selectedCat && (
         <div className="fixed inset-0 bg-retro-border/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-retro-bg border-[3px] border-retro-border rounded-3xl p-5 shadow-retro-lg w-full max-w-md animate-in slide-in-from-bottom-5">
+          <div className="bg-retro-bg border-[3px] border-retro-border rounded-3xl p-4 sm:p-5 shadow-retro-lg w-full max-w-md animate-in slide-in-from-bottom-5">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h3 className="font-black text-lg text-retro-border">{selectedCat.name}</h3>
@@ -159,7 +161,7 @@ function QuickAddPageContent() {
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-3 sm:space-y-4">
               {/* Dynamic Payer Selection */}
               <div>
                 <label className="block text-xs font-black text-retro-border mb-1">מי משלם?</label>
@@ -193,7 +195,7 @@ function QuickAddPageContent() {
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full p-3 bg-white border-2 border-retro-border rounded-xl text-2xl font-black outline-none"
+                  className="w-full p-2.5 bg-white border-2 border-retro-border rounded-xl text-xl sm:text-2xl font-black outline-none"
                   dir="ltr"
                 />
               </div>

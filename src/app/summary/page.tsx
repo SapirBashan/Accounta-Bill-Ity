@@ -90,7 +90,7 @@ export default async function YearSummaryPage({
           <p className="mt-1 text-xl font-black" dir="ltr">{money(summary.totalSpent)}</p>
         </div>
         <div className="bg-retro-yellow border-[3px] border-retro-border rounded-2xl p-3 shadow-retro">
-          <div className="flex items-center gap-1 text-xs font-black text-retro-border/65"><Wallet size={15} /> מאזן</div>
+          <div className="flex items-center gap-1 text-xs font-black text-retro-border/65"><Wallet size={15} /> חסכון</div>
           <p className="mt-1 text-xl font-black" dir="ltr">{money(summary.cashFlow)}</p>
         </div>
         <div className="bg-white border-[3px] border-retro-border rounded-2xl p-3 shadow-retro">
@@ -118,7 +118,7 @@ export default async function YearSummaryPage({
             <p className="font-black" dir="ltr">{money(monthlyAverage.budget)}</p>
           </div>
           <div className="bg-retro-bg rounded-xl p-2">
-            <p className="text-[10px] font-black text-retro-border/60">מאזן</p>
+            <p className="text-[10px] font-black text-retro-border/60">חסכון</p>
             <p className="font-black" dir="ltr">{money(monthlyAverage.cashFlow)}</p>
           </div>
         </div>

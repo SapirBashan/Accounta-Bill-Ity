@@ -8,6 +8,7 @@ type SortableCategoryListProps<T> = {
   onReorder: (items: T[]) => void;
   children: (item: T) => React.ReactNode;
   getId?: (item: T) => string;
+  className?: string;
 };
 
 function uniqueItems<T>(items: T[], getId: (item: T) => string) {
@@ -25,6 +26,7 @@ export default function SortableCategoryList<T>({
   onReorder,
   children,
   getId = (item) => (item as { id: string }).id,
+  className = 'gap-3',
 }: SortableCategoryListProps<T>) {
   const [orderedItems, setOrderedItems] = useState(() => uniqueItems(items, getId));
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export default function SortableCategoryList<T>({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className={`grid grid-cols-2 ${className}`}>
       {uniqueItems(orderedItems, getId).map((item) => (
         <div
           key={getId(item)}

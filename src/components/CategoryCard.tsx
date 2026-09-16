@@ -9,6 +9,7 @@ type CategoryCardProps = {
   onSelect?: () => void;
   onBudgetChange?: (value: string) => void;
   onBudgetBlur?: () => void;
+  compact?: boolean;
 };
 
 export default function CategoryCard({
@@ -20,13 +21,14 @@ export default function CategoryCard({
   onSelect,
   onBudgetChange,
   onBudgetBlur,
+  compact = false,
 }: CategoryCardProps) {
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const content = (
     <>
-      <div className="flex justify-between items-start gap-2 mb-2">
-        <span className="font-black text-sm text-retro-border line-clamp-1">{name}</span>
-        <span className="shrink-0 text-[10px] font-bold bg-retro-bg px-2 py-0.5 border border-retro-border rounded-lg">
+      <div className={`flex justify-between items-start gap-1 ${compact ? 'mb-1' : 'mb-2'}`}>
+        <span className={`${compact ? 'text-xs' : 'text-sm'} font-black text-retro-border line-clamp-1`}>{name}</span>
+        <span className="shrink-0 text-[9px] font-bold bg-retro-bg px-1.5 py-0.5 border border-retro-border rounded-md">
           {groupName}
         </span>
       </div>
@@ -44,11 +46,11 @@ export default function CategoryCard({
         </div>
       ) : (
         <div>
-          <div className="flex justify-between text-xs font-black text-retro-border/80 mb-1" dir="ltr">
+          <div className="flex justify-between text-[11px] font-black text-retro-border/80 mb-1" dir="ltr">
             <span>₪{spent}</span>
             <span className="text-retro-border/50">/ ₪{budget}</span>
           </div>
-          <div className="w-full bg-retro-bg h-2 rounded-full border border-retro-border overflow-hidden">
+          <div className={`w-full bg-retro-bg rounded-full border border-retro-border overflow-hidden ${compact ? 'h-1.5' : 'h-2'}`}>
             <div
               className={`h-full ${spent > budget && budget > 0 ? 'bg-retro-terracotta' : 'bg-retro-green'}`}
               style={{ width: `${Math.min(percent, 100)}%` }}
@@ -65,7 +67,7 @@ export default function CategoryCard({
     <button
       type="button"
       onClick={onSelect}
-      className="w-full border-2 border-retro-border rounded-2xl p-3 shadow-retro text-right bg-white hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+      className={`w-full border-2 border-retro-border shadow-retro text-right bg-white hover:-translate-y-0.5 active:translate-y-0.5 transition-all ${compact ? 'rounded-xl p-2' : 'rounded-2xl p-3'}`}
     >
       {content}
     </button>
