@@ -15,8 +15,8 @@ export type UserCategory = {
 export async function getUserCategories(
   supabase: SupabaseClient,
   userId: string,
+  ownerId = userId,
 ): Promise<UserCategory[]> {
-  const ownerId = await getHouseholdOwnerId(supabase, userId);
   const categoriesQuery = supabase
       .from('categories')
       .select('id, name, group_name, type, default_budget, owner_id')
@@ -94,7 +94,8 @@ export async function ensureUserCategoryPreferences(
     .eq('user_id', userId);
   if (count && count > 0) return;
 
-  const categories = await getUserCategories(supabase, userId);
+  const ownerId = await getHouseholdOwnerId(supabase, userId);
+  const categories = await getUserCategories(supabase, userId, ownerId);
   const defaults = categories.map((category, sort_order) => ({
       user_id: userId,
       category_id: category.id,

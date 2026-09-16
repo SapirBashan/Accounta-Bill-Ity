@@ -70,7 +70,8 @@ export async function reorderCategories(categoryIds: string[]) {
   if (!authData.user) throw new Error('חובה להתחבר למערכת כדי לסדר קטגוריות');
   await ensureUserCategoryPreferences(supabase, authData.user.id);
 
-  const categories = await getUserCategories(supabase, authData.user.id);
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
+  const categories = await getUserCategories(supabase, authData.user.id, ownerId);
   const allowedIds = new Set(categories.map((category) => category.id));
   const orderedIds = categoryIds.filter((categoryId) => allowedIds.has(categoryId));
   const updates = orderedIds.map((categoryId, sort_order) => ({
