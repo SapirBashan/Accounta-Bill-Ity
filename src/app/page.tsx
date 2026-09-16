@@ -1,9 +1,7 @@
 
 
 import {
-  getCategoryCardSummaries,
-  getDashboardSummary,
-  getRecentTransactions,
+  getDashboardPageData,
   TransactionItem,
 } from '@/actions/transactions';
 
@@ -16,11 +14,7 @@ export default async function MainPage({ searchParams }: MainPageProps) {
   const selectedMonth = /^\d{4}-\d{2}$/.test(params.month || '')
     ? params.month as string
     : new Date().toISOString().slice(0, 7);
-  const [summary, transactions, categorySummaries] = await Promise.all([
-    getDashboardSummary(selectedMonth),
-    getRecentTransactions(5, selectedMonth),
-    getCategoryCardSummaries(selectedMonth),
-  ]);
+  const { summary, transactions, categorySummaries } = await getDashboardPageData(selectedMonth);
   const expenseCategories = categorySummaries.filter((category) => category.type !== 'income');
   const totalBudget = expenseCategories.reduce((total, category) => total + category.budget, 0);
   const totalBudgetSpent = expenseCategories.reduce((total, category) => total + category.spent, 0);

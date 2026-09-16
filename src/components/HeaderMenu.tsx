@@ -49,6 +49,7 @@ export default function HeaderMenu() {
   }, []);
 
   useEffect(() => {
+    if (!isOpen) return;
     let isMounted = true;
     async function init() {
       const { data } = await supabase.auth.getUser();
@@ -76,7 +77,7 @@ export default function HeaderMenu() {
       document.removeEventListener('visibilitychange', refreshMembers);
       supabase.removeChannel(channel);
     };
-  }, [loadMembers]);
+  }, [isOpen, loadMembers]);
 
   const handlePayerChange = (name: string) => {
     setActivePayer(name);

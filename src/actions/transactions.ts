@@ -208,6 +208,87 @@ export async function getRecentTransactions(limit = 5, monthYearStr?: string): P
   }));
 }
 
+export async function getDashboardPageData(monthYearStr: string) {
+  const supabase = await getSupabaseServer();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) {
+    return {
+      summary: { totalIncome: 0, totalSpent: 0, monthlyCashFlow: 0 },
+      transactions: [],
+      categorySummaries: [],
+    };
+  }
+
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
+  const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+  const [categories, transactionResult, budgetsResult] = await Promise.all([
+    getUserCategories(supabase, ownerId),
+    supabase
+      .from('transactions')
+      .select(`
+        id,
+        amount,
+        date,
+        user_name,
+        notes,
+        category:categories ( id, name, group_name, type )
+      `)
+      .eq('user_id', ownerId)
+      .gte('date', startDate)
+      .lt('date', nextMonth)
+      .order('date', { ascending: false }),
+    supabase
+      .from('monthly_budgets')
+      .select('category_id, planned_amount')
+      .eq('user_id', ownerId)
+      .eq('month', startDate),
+  ]);
+  const transactionRows = transactionResult.data;
+  const budgets = budgetsResult.data;
+
+  // Supabase may return a joined one-to-one relation as an array.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizedTransactions = ((transactionRows || []) as any[]).map((transaction) => ({
+    id: transaction.id,
+    amount: transaction.amount,
+    date: transaction.date,
+    user_name: transaction.user_name,
+    notes: transaction.notes,
+    category: Array.isArray(transaction.category) ? transaction.category[0] || null : transaction.category,
+  })) as TransactionItem[];
+  const spentMap: Record<string, number> = {};
+  const budgetMap: Record<string, number> = {};
+  let totalIncome = 0;
+  let totalSpent = 0;
+
+  normalizedTransactions.forEach((transaction) => {
+    const amount = Number(transaction.amount) || 0;
+    if (transaction.category?.type === 'income') {
+      totalIncome += amount;
+    } else {
+      totalSpent += amount;
+      const categoryId = transaction.category?.id;
+      if (categoryId) spentMap[categoryId] = (spentMap[categoryId] || 0) + amount;
+    }
+  });
+  (budgets || []).forEach((budget) => {
+    budgetMap[budget.category_id] = Number(budget.planned_amount) || 0;
+  });
+
+  return {
+    summary: { totalIncome, totalSpent, monthlyCashFlow: totalIncome - totalSpent },
+    transactions: normalizedTransactions.slice(0, 5),
+    categorySummaries: (categories || []).filter((category) => category.active).map((category) => ({
+      id: category.id,
+      name: category.name,
+      group_name: category.group_name,
+      type: category.type,
+      spent: spentMap[category.id] || 0,
+      budget: budgetMap[category.id] ?? 0,
+    })),
+  };
+}
+
 /**
  * Get monthly total income & total spent summary for the dashboard
  */
