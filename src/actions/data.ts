@@ -76,12 +76,20 @@ export async function importSpreadsheetData(months: SpreadsheetMonth[]) {
   }
 
   const importedDates = months.map((month) => `${month.month}-15`);
+  const importedMonths = months.map((month) => `${month.month}-01`);
   if (importedDates.length > 0) {
-    await supabase
+    const { error: transactionDeleteError } = await supabase
       .from('transactions')
       .delete()
       .eq('user_id', ownerId)
       .like('notes', 'ייבוא XLSX:%');
+    if (transactionDeleteError) throw new Error(`לא ניתן לנקות ייבוא קודם: ${transactionDeleteError.message}`);
+    const { error: budgetDeleteError } = await supabase
+      .from('monthly_budgets')
+      .delete()
+      .eq('user_id', ownerId)
+      .in('month', importedMonths);
+    if (budgetDeleteError) throw new Error(`לא ניתן לעדכן תקציבי הייבוא: ${budgetDeleteError.message}`);
   }
 
   const budgets = months.flatMap((month) => month.expenses.flatMap((expense) => {

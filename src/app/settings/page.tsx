@@ -148,10 +148,14 @@ export default function SettingsPage() {
       try {
         const workbook = XLSX.read(reader.result, { type: 'array', raw: false });
         const months: SpreadsheetMonth[] = [];
-        const monthNames = ['ינואר', 'פבואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+        const monthNumbers = new Map([
+          ['ינואר', 1], ['פבואר', 2], ['פברואר', 2], ['מרץ', 3], ['אפריל', 4],
+          ['מאי', 5], ['יוני', 6], ['יולי', 7], ['אוגוסט', 8], ['ספטמבר', 9],
+          ['אוקטובר', 10], ['נובמבר', 11], ['דצמבר', 12],
+        ]);
         workbook.SheetNames.forEach((sheetName) => {
-          const monthNumber = monthNames.findIndex((name) => sheetName.startsWith(name));
-          if (monthNumber < 0 || sheetName === 'סיכום שנתי') return;
+          const monthNumber = [...monthNumbers.entries()].find(([name]) => sheetName.startsWith(name))?.[1];
+          if (!monthNumber || sheetName === 'סיכום שנתי') return;
           const yearMatch = sheetName.match(/\.(\d{2})/);
           const year = yearMatch ? 2000 + Number(yearMatch[1]) : 2026;
           const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: null, raw: false });
@@ -185,7 +189,7 @@ export default function SettingsPage() {
               ? { ...expense, budget: Math.max(previous.budget, expense.budget), spent: previous.spent + expense.spent }
               : expense);
           });
-          months.push({ month: `${year}-${String(monthNumber + 1).padStart(2, '0')}`, expenses: [...deduped.values()], income });
+          months.push({ month: `${year}-${String(monthNumber).padStart(2, '0')}`, expenses: [...deduped.values()], income });
         });
         resolve(months);
       } catch (parseError) {
