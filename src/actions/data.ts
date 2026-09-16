@@ -40,7 +40,7 @@ function parseSpreadsheetWorkbook(base64: string): SpreadsheetMonth[] {
     const monthNumber = [...monthNumbers.entries()].find(([name]) => sheetName.startsWith(name))?.[1];
     if (!monthNumber || sheetName === 'סיכום שנתי') return;
     const yearMatch = sheetName.match(/\.(\d{2})/);
-    const year = yearMatch ? 2000 + Number(yearMatch[1]) : 2026;
+    const year = yearMatch ? 2000 + Number(yearMatch[1]) : monthNumber === 12 ? 2025 : 2026;
     const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
       header: 1,
       defval: null,
