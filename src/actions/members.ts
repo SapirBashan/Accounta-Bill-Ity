@@ -19,24 +19,25 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
 
   if (!authData?.user) return [];
 
-  const { data, error } = await supabase.rpc('get_household_members') as {
-    data: HouseholdMember[] | null;
-    error: { message: string } | null;
-  };
+  const currentEmail = authData.user.email?.trim().toLowerCase();
+  const [{ data, error }, { data: ownMembership }] = await Promise.all([
+    supabase.rpc('get_household_members') as unknown as Promise<{
+      data: HouseholdMember[] | null;
+      error: { message: string } | null;
+    }>,
+    currentEmail
+      ? supabase
+        .from('household_members')
+        .select('id')
+        .eq('email', currentEmail)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   if (error) {
     console.error('Error fetching members:', error.message);
     return [];
   }
-
-  const currentEmail = authData.user.email?.trim().toLowerCase();
-  const { data: ownMembership } = currentEmail
-    ? await supabase
-      .from('household_members')
-      .select('id')
-      .eq('email', currentEmail)
-      .maybeSingle()
-    : { data: null };
   const emailMembers = (data || []).filter((member) => member.email);
 
   if (currentEmail && !emailMembers.some((member) => member.email?.toLowerCase() === currentEmail)) {

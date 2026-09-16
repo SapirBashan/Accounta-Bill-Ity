@@ -43,13 +43,12 @@ function QuickAddPageContent() {
 
   useEffect(() => {
     async function loadData() {
-      // 1. Load Category Summaries
-      const cardData = await getCategoryCardSummaries(currentMonth);
+      const [cardData, memberList] = await Promise.all([
+        getCategoryCardSummaries(currentMonth),
+        getHouseholdMembers(),
+      ]);
       const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
       setCategories(cardData.filter((category) => !hiddenIds.includes(category.id)));
-
-      // 2. Load Household Members
-      const memberList = await getHouseholdMembers();
       setMembers(memberList);
 
       // 3. Set Default Selected Payer
@@ -144,8 +143,8 @@ function QuickAddPageContent() {
 
       {/* Quick Add Modal */}
       {selectedCat && (
-        <div className="fixed inset-0 bg-retro-border/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-retro-bg border-[3px] border-retro-border rounded-3xl p-4 sm:p-5 shadow-retro-lg w-full max-w-md animate-in slide-in-from-bottom-5">
+        <div className="fixed inset-0 bg-retro-border/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-retro-bg border-[3px] border-retro-border rounded-3xl p-4 sm:p-5 shadow-retro-lg w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h3 className="font-black text-lg text-retro-border">{selectedCat.name}</h3>
