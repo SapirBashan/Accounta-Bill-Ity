@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Copy, CheckCircle2, Plus, Minus } from 'lucide-react';
 import {
@@ -33,7 +33,7 @@ type CategoryOption = {
 
 const EXPENSE_GROUPS = ['דיור', 'חיוניות', 'תחבורה', 'ילדים', 'בריאות', 'מותרות', 'אחר'];
 
-export default function BudgetPlanningPage() {
+function BudgetPlanningPageContent() {
   const searchParams = useSearchParams();
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
   const [loading, setLoading] = useState(true); // Automatically true on first load
@@ -276,5 +276,13 @@ export default function BudgetPlanningPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BudgetPlanningPage() {
+  return (
+    <Suspense fallback={<div className="py-8 text-center font-bold text-retro-border/50">טוען...</div>}>
+      <BudgetPlanningPageContent />
+    </Suspense>
   );
 }

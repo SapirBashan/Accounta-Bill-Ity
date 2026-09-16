@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { addTransaction, getCategoryCardSummaries } from '@/actions/transactions';
@@ -18,7 +18,7 @@ type CategoryCard = {
   budget: number;
 };
 
-export default function QuickAddPage() {
+function QuickAddPageContent() {
   const searchParams = useSearchParams();
   const [categories, setCategories] = useState<CategoryCard[]>([]);
   const [search, setSearch] = useState('');
@@ -221,5 +221,13 @@ export default function QuickAddPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function QuickAddPage() {
+  return (
+    <Suspense fallback={<div className="py-8 text-center font-bold text-retro-border/50">טוען...</div>}>
+      <QuickAddPageContent />
+    </Suspense>
   );
 }

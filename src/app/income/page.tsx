@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Minus, Plus, WalletCards } from 'lucide-react';
 import { addIncome, getIncomePageData } from '@/actions/transactions';
@@ -21,7 +21,7 @@ type IncomeTransaction = {
   category_name: string;
 };
 
-export default function IncomePage() {
+function IncomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const selectedMonth = searchParams.get('month');
@@ -198,5 +198,13 @@ export default function IncomePage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function IncomePage() {
+  return (
+    <Suspense fallback={<div className="py-8 text-center font-bold text-retro-border/50">טוען...</div>}>
+      <IncomePageContent />
+    </Suspense>
   );
 }
