@@ -160,7 +160,7 @@ export default function BudgetPlanningPage() {
           onClick={handleCopyLastMonth}
           className="flex items-center gap-1.5 bg-retro-yellow text-retro-border px-3 py-2 border-2 border-retro-border rounded-xl font-black text-xs shadow-retro active:translate-y-0.5 transition-all"
         >
-          <Copy size={14} /> העתק מחודש שעבר
+          <Copy size={14} /> העתק תקציב מחודש שעבר
         </button>
       </div>
 

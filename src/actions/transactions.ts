@@ -379,3 +379,121 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
 
   return { totalBudget, totalSpent, categoriesBudget };
 }
+
+export type YearSummary = {
+  year: number;
+  months: Array<{
+    month: string;
+    label: string;
+    income: number;
+    spent: number;
+    budget: number;
+    cashFlow: number;
+  }>;
+  categories: Array<{
+    id: string;
+    name: string;
+    groupName: string;
+    spent: number;
+    budget: number;
+  }>;
+  totalIncome: number;
+  totalSpent: number;
+  totalBudget: number;
+  cashFlow: number;
+};
+
+export async function getYearSummary(year: number): Promise<YearSummary> {
+  const emptyMonths = Array.from({ length: 12 }, (_, index) => ({
+    month: `${year}-${String(index + 1).padStart(2, '0')}`,
+    label: ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'][index],
+    income: 0,
+    spent: 0,
+    budget: 0,
+    cashFlow: 0,
+  }));
+  const emptySummary: YearSummary = {
+    year,
+    months: emptyMonths,
+    categories: [],
+    totalIncome: 0,
+    totalSpent: 0,
+    totalBudget: 0,
+    cashFlow: 0,
+  };
+
+  const supabase = await getSupabaseServer();
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return emptySummary;
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
+  const startDate = `${year}-01-01`;
+  const endDate = `${year + 1}-01-01`;
+  const categories = await getUserCategories(supabase, ownerId);
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+  const expenseCategories = categories.filter((category) => category.type !== 'income');
+
+  const [{ data: transactions }, { data: budgets }] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('amount, date, category_id')
+      .eq('user_id', ownerId)
+      .gte('date', startDate)
+      .lt('date', endDate),
+    supabase
+      .from('monthly_budgets')
+      .select('category_id, month, planned_amount')
+      .eq('user_id', ownerId)
+      .gte('month', startDate)
+      .lt('month', endDate),
+  ]);
+
+  const monthly = emptyMonths.map((month) => ({ ...month }));
+  const categoryTotals = new Map(expenseCategories.map((category) => [category.id, {
+    id: category.id,
+    name: category.name,
+    groupName: category.group_name,
+    spent: 0,
+    budget: 0,
+  }]));
+
+  (transactions || []).forEach((transaction) => {
+    const amount = Number(transaction.amount) || 0;
+    const monthIndex = Number(String(transaction.date).slice(5, 7)) - 1;
+    if (monthIndex < 0 || monthIndex > 11) return;
+    const category = categoryMap.get(transaction.category_id);
+    if (category?.type === 'income') {
+      monthly[monthIndex].income += amount;
+    } else {
+      monthly[monthIndex].spent += amount;
+      const total = categoryTotals.get(transaction.category_id);
+      if (total) total.spent += amount;
+    }
+  });
+
+  (budgets || []).forEach((budget) => {
+    const amount = Number(budget.planned_amount) || 0;
+    const monthIndex = Number(String(budget.month).slice(5, 7)) - 1;
+    const total = categoryTotals.get(budget.category_id);
+    if (monthIndex >= 0 && monthIndex < 12) monthly[monthIndex].budget += amount;
+    if (total) total.budget += amount;
+  });
+
+  monthly.forEach((month) => {
+    month.cashFlow = month.income - month.spent;
+  });
+  const totalIncome = monthly.reduce((sum, month) => sum + month.income, 0);
+  const totalSpent = monthly.reduce((sum, month) => sum + month.spent, 0);
+  const totalBudget = monthly.reduce((sum, month) => sum + month.budget, 0);
+
+  return {
+    year,
+    months: monthly,
+    categories: [...categoryTotals.values()]
+      .filter((category) => category.spent > 0 || category.budget > 0)
+      .sort((left, right) => right.spent - left.spent),
+    totalIncome,
+    totalSpent,
+    totalBudget,
+    cashFlow: totalIncome - totalSpent,
+  };
+}

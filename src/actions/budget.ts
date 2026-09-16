@@ -131,15 +131,23 @@ export async function copyLastMonthBudgets(currentMonthStr: string) {
   if (!authData.user) return;
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
+  const expenseCategoryIds = new Set(
+    (await getUserCategories(supabase, ownerId))
+      .filter((category) => category.type !== 'income')
+      .map((category) => category.id),
+  );
+  if (expenseCategoryIds.size === 0) return;
+
   const { data: prevBudgets } = await supabase
     .from('monthly_budgets')
     .select('category_id, planned_amount')
     .eq('month', prevMonthStr)
     .eq('user_id', ownerId);
 
-  if (!prevBudgets || prevBudgets.length === 0) return;
+  const expenseBudgets = (prevBudgets || []).filter((budget) => expenseCategoryIds.has(budget.category_id));
+  if (expenseBudgets.length === 0) return;
 
-  const inserts = prevBudgets.map((b) => ({
+  const inserts = expenseBudgets.map((b) => ({
     category_id: b.category_id,
     month: `${currentMonthStr}-01`,
     planned_amount: b.planned_amount,
