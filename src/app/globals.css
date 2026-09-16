@@ -17,8 +17,33 @@
   color-scheme: light;
 }
 
+html.dark {
+  color-scheme: dark;
+  --color-retro-bg: #18201c;
+  --color-retro-card: #27332d;
+  --color-retro-border: #f2eee6;
+  --color-retro-green: #718b68;
+  --color-retro-green-light: #3d5540;
+  --color-retro-terracotta: #c96752;
+  --color-retro-yellow: #d7c957;
+}
+
 body {
-  background-color: #FAF7F2;
-  color: #1F2937;
+  background-color: var(--color-retro-bg);
+  color: var(--color-retro-border);
   font-family: inherit;
+}
+
+html.dark .bg-white {
+  background-color: #27332d;
+}
+
+html.dark .bg-slate-50 {
+  background-color: #202b25;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: #d8d4cb;
 }

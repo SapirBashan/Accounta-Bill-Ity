@@ -157,7 +157,13 @@ export default function HeaderMenu() {
                 </span>
               </button>
 
-              <button className="w-full flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-right border-2 border-transparent hover:border-retro-border/20">
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push('/settings');
+                }}
+                className="w-full flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-right border-2 border-transparent hover:border-retro-border/20"
+              >
                 <Settings size={16} className="text-retro-border" />
                 <span className="text-sm font-bold text-retro-border">הגדרות חשבון</span>
               </button>

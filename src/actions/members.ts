@@ -70,3 +70,20 @@ export async function inviteHouseholdMember(email: string) {
   revalidatePath('/add');
   revalidatePath('/');
 }
+
+export async function leaveHousehold() {
+  const supabase = await getSupabaseServer();
+  const { data: authData } = await supabase.auth.getUser();
+
+  if (!authData?.user) {
+    throw new Error('חובה להתחבר למערכת כדי לעזוב קבוצה');
+  }
+
+  const { error } = await supabase.rpc('leave_household');
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/');
+  revalidatePath('/settings');
+}
