@@ -6,7 +6,7 @@ Accounta-Bill-Ity is a Hebrew family finance app for tracking income, expenses, 
 
 Open the deployed app:
 
-**[Open Accounta-Bill-Ity]([https://accountabillity.vercel.app](https://accountabillity-azure.vercel.app/)**
+**[Open Accounta-Bill-Ity](https://accountabillity-azure.vercel.app)**
 
 Deployment dashboard:
 
@@ -140,6 +140,7 @@ Configure these Vercel environment variables for Production, Preview, and Develo
 ```text
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SITE_URL
 ```
 
 After deployment, configure Supabase Auth:
@@ -150,7 +151,13 @@ After deployment, configure Supabase Auth:
 4. Add the callback URL:
 
 ```text
-https://accountabillity.vercel.app/auth/callback
+https://accountabillity-azure.vercel.app/auth/callback
+```
+
+For the deployed Vercel app, set `NEXT_PUBLIC_SITE_URL` to:
+
+```text
+https://accountabillity-azure.vercel.app
 ```
 
 Never expose a Supabase service-role key in client code or public environment variables.
