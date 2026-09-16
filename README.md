@@ -6,7 +6,7 @@ Accounta-Bill-Ity is a Hebrew family finance app for tracking income, expenses, 
 
 Open the deployed app:
 
-**[Open Accounta-Bill-Ity]([https://accountabillity.vercel.app](https://accountabillity-azure.vercel.app/))**
+**[Open Accounta-Bill-Ity]([https://accountabillity.vercel.app](https://accountabillity-azure.vercel.app/)**
 
 Deployment dashboard:
 
