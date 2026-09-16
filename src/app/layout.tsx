@@ -5,6 +5,7 @@ import './globals.css';
 import BottomNav from '@/components/BottomNav';
 import HeaderMenu from '@/components/HeaderMenu';
 import MonthSelector from '@/components/MonthSelector';
+import ThemeInitializer from '@/components/ThemeInitializer';
 
 const heebo = Heebo({ subsets: ['hebrew', 'latin'] });
 
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body className={`${heebo.className} bg-retro-bg text-retro-border min-h-screen pb-24 antialiased selection:bg-retro-yellow`}>
+        <ThemeInitializer />
         
         {/* Fixed Retro Header */}
         <header className="bg-retro-green border-b-[3px] border-retro-border rounded-b-3xl px-4 py-4 mb-6 shadow-[0px_4px_0px_0px_#1F2937] relative">
