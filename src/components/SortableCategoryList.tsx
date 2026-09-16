@@ -28,7 +28,6 @@ export default function SortableCategoryList<T>({
 }: SortableCategoryListProps<T>) {
   const [orderedItems, setOrderedItems] = useState(() => uniqueItems(items, getId));
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragging = useRef(false);
 
   useEffect(() => {
@@ -50,15 +49,15 @@ export default function SortableCategoryList<T>({
   };
 
   const handleTouchStart = (event: React.TouchEvent, id: string) => {
-    touchTimer.current = setTimeout(() => {
-      touchDragging.current = true;
-      setDraggingId(id);
-    }, 450);
+    event.preventDefault();
+    touchDragging.current = true;
+    setDraggingId(id);
     event.currentTarget.setAttribute('aria-pressed', 'true');
   };
 
   const handleTouchMove = (event: React.TouchEvent) => {
     if (!touchDragging.current) return;
+
     event.preventDefault();
     const touch = event.touches[0];
     const target = document.elementFromPoint(touch.clientX, touch.clientY)
@@ -69,7 +68,6 @@ export default function SortableCategoryList<T>({
   };
 
   const handleTouchEnd = (event: React.TouchEvent) => {
-    if (touchTimer.current) clearTimeout(touchTimer.current);
     touchDragging.current = false;
     setDraggingId(null);
     event.currentTarget.setAttribute('aria-pressed', 'false');
@@ -104,6 +102,7 @@ export default function SortableCategoryList<T>({
               onTouchStart={(event) => handleTouchStart(event, getId(item))}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
               className="touch-none select-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
             >
               <GripVertical size={18} />
