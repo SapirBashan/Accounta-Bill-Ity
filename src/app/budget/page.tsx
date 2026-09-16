@@ -95,7 +95,12 @@ export default function BudgetPlanningPage() {
         return nextItem || item;
       });
     });
-    await reorderCategories(items.map((item) => item.category_id));
+    try {
+      await reorderCategories(items.map((item) => item.category_id));
+    } catch (error) {
+      setCategoryError(error instanceof Error ? error.message : 'לא ניתן לשמור את סדר הקטגוריות');
+      await fetchBudgets();
+    }
   };
 
   const handleCategoryToggle = async (categoryId: string, active: boolean) => {

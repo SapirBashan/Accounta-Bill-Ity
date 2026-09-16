@@ -96,10 +96,15 @@ export default function SortableCategoryList<T>({
               type="button"
               draggable
               aria-label="גרור קטגוריה"
+              onDragStart={(event) => {
+                event.stopPropagation();
+                setDraggingId(getId(item));
+              }}
+              onDragEnd={() => setDraggingId(null)}
               onTouchStart={(event) => handleTouchStart(event, getId(item))}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className="touch-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
+              className="touch-none select-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
             >
               <GripVertical size={18} />
             </button>
