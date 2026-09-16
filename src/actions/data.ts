@@ -65,7 +65,8 @@ function parseSpreadsheetWorkbook(base64: string): SpreadsheetMonth[] {
         expenses.push({ name: variableName, groupName: variableGroup, type: 'variable_expense', budget: parseAmount(row[6]), spent: parseAmount(row[7]) });
       }
       const incomeName = typeof row[10] === 'string' ? row[10].trim() : '';
-      if (incomeName && row[12] !== null && row[12] !== undefined && row[12] !== '' && !incomeName.startsWith('תזרים')) {
+      if (['משכורת', 'הכנסה נוספת', 'הכנסות נוספות'].includes(incomeName)
+        && row[12] !== null && row[12] !== undefined && row[12] !== '') {
         income += parseAmount(row[12]);
       }
     });
