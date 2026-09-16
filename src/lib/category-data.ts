@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getHouseholdOwnerId } from '@/lib/household';
 
 export type UserCategory = {
   id: string;
@@ -15,10 +16,11 @@ export async function getUserCategories(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<UserCategory[]> {
+  const ownerId = await getHouseholdOwnerId(supabase, userId);
   const categoriesQuery = supabase
       .from('categories')
       .select('id, name, group_name, type, default_budget, owner_id')
-      .or(`owner_id.is.null,owner_id.eq.${userId}`)
+      .or(`owner_id.is.null,owner_id.eq.${ownerId}`)
       .neq('name', 'משכורת עמליה');
   const preferencesQuery = supabase
       .from('user_category_preferences')
@@ -69,7 +71,7 @@ export async function getUserCategories(
         type: category.type,
         default_budget: Number(category.default_budget) || 0,
         active: preference?.active ?? (
-          category.owner_id === userId || (!hasPreferences && !category.owner_id)
+          category.owner_id === ownerId || (!hasPreferences && !category.owner_id)
         ),
         sort_order: preference?.sort_order ?? Number.MAX_SAFE_INTEGER,
         owner_id: category.owner_id ?? null,

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { ensureUserCategoryPreferences, getUserCategories } from '@/lib/category-data';
+import { getHouseholdOwnerId } from '@/lib/household';
 
 /**
  * Fetch the user's planned budgets for one month.
@@ -12,13 +13,14 @@ export async function getMonthlyBudgets(monthStr: string) {
   const monthDate = `${monthStr}-01`;
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
-  const categories = await getUserCategories(supabase, authData.user.id);
+  const categories = await getUserCategories(supabase, ownerId);
   const { data: monthly } = await supabase
     .from('monthly_budgets')
     .select('*')
     .eq('month', monthDate)
-    .eq('user_id', authData.user.id);
+    .eq('user_id', ownerId);
 
   const monthlyMap: Record<string, number> = {};
   monthly?.forEach((m) => {
@@ -38,8 +40,9 @@ export async function getCategoryCatalog() {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
-  return getUserCategories(supabase, authData.user.id);
+  return getUserCategories(supabase, ownerId);
 }
 
 export async function setCategoryActive(categoryId: string, active: boolean) {
@@ -99,13 +102,14 @@ export async function updateCategoryBudget(categoryId: string, monthStr: string,
   const monthDate = `${monthStr}-01`;
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) throw new Error('חובה להתחבר למערכת כדי לעדכן תקציב');
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
   const { error } = await supabase.from('monthly_budgets').upsert(
     {
       category_id: categoryId,
       month: monthDate,
       planned_amount: amount,
-      user_id: authData.user.id,
+      user_id: ownerId,
     },
     { onConflict: 'user_id,category_id,month' }
   );
@@ -125,12 +129,13 @@ export async function copyLastMonthBudgets(currentMonthStr: string) {
   const prevMonthStr = currentDate.toISOString().slice(0, 10);
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return;
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
   const { data: prevBudgets } = await supabase
     .from('monthly_budgets')
     .select('category_id, planned_amount')
     .eq('month', prevMonthStr)
-    .eq('user_id', authData.user.id);
+    .eq('user_id', ownerId);
 
   if (!prevBudgets || prevBudgets.length === 0) return;
 
@@ -138,7 +143,7 @@ export async function copyLastMonthBudgets(currentMonthStr: string) {
     category_id: b.category_id,
     month: `${currentMonthStr}-01`,
     planned_amount: b.planned_amount,
-    user_id: authData.user.id,
+    user_id: ownerId,
   }));
 
   await supabase.from('monthly_budgets').upsert(inserts, { onConflict: 'user_id,category_id,month' });
@@ -150,6 +155,7 @@ export async function createCategory(name: string, groupName: string, type: 'fix
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) throw new Error('חובה להתחבר למערכת כדי להוסיף קטגוריה');
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
   await ensureUserCategoryPreferences(supabase, authData.user.id);
 
   const trimmedName = name.trim();
@@ -163,7 +169,7 @@ export async function createCategory(name: string, groupName: string, type: 'fix
       group_name: trimmedGroup,
       type,
       default_budget: 0,
-      owner_id: authData.user.id,
+      owner_id: ownerId,
     })
     .select('id')
     .single();

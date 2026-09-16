@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { getUserCategories } from '@/lib/category-data';
+import { getHouseholdOwnerId } from '@/lib/household';
 
 function getMonthDateRange(monthYearStr: string) {
   const [year, month] = monthYearStr.split('-').map(Number);
@@ -49,6 +50,7 @@ export async function addTransaction(data: NewTransaction) {
   if (authError || !authData.user) {
     throw new Error('חובה להתחבר למערכת כדי להוסיף תנועה');
   }
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
   const { error } = await supabase.from('transactions').insert({
     category_id: data.category_id,
@@ -56,7 +58,7 @@ export async function addTransaction(data: NewTransaction) {
     date: data.date,
     user_name: data.user_name,
     notes: data.notes,
-    user_id: authData.user.id,
+    user_id: ownerId,
   });
 
   if (error) {
@@ -73,6 +75,7 @@ export async function addIncome(categoryId: string, amount: number, date: string
   const supabase = await getSupabaseServer();
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error('חובה להתחבר למערכת כדי להוסיף הכנסה');
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
   const { error } = await supabase.from('transactions').insert({
     category_id: categoryId,
@@ -80,7 +83,7 @@ export async function addIncome(categoryId: string, amount: number, date: string
     date,
     user_name: authData.user.email?.split('@')[0] || 'משתמש',
     notes: notes || 'הכנסה',
-    user_id: authData.user.id,
+    user_id: ownerId,
   });
   if (error) throw new Error(error.message);
 
@@ -94,8 +97,9 @@ export async function getIncomePageData(monthYearStr: string) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { categories: [], transactions: [] };
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
-  const allCategories = await getUserCategories(supabase, authData.user.id);
+  const allCategories = await getUserCategories(supabase, ownerId);
   const categories = allCategories.filter(
     (category) => category.active && category.type === 'income',
   );
@@ -108,7 +112,7 @@ export async function getIncomePageData(monthYearStr: string) {
   const { data: transactions } = await supabase
       .from('transactions')
       .select('id, category_id, amount, date, user_name, notes')
-      .eq('user_id', authData.user.id)
+      .eq('user_id', ownerId)
       .in('category_id', incomeCategoryIds)
       .gte('date', startDate)
       .lt('date', nextMonth)
@@ -136,7 +140,8 @@ export async function getCategories() {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
-  return getUserCategories(supabase, authData.user.id);
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
+  return getUserCategories(supabase, ownerId);
 }
 
 /**
@@ -163,6 +168,7 @@ export async function getRecentTransactions(limit = 5, monthYearStr?: string): P
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
   let query = supabase
     .from('transactions')
     .select(`
@@ -173,7 +179,7 @@ export async function getRecentTransactions(limit = 5, monthYearStr?: string): P
       notes,
       category:categories ( id, name, group_name, type )
     `)
-    .eq('user_id', authData.user.id)
+    .eq('user_id', ownerId)
     .order('date', { ascending: false });
 
   if (monthYearStr) {
@@ -219,6 +225,7 @@ export async function getDashboardSummary(monthYearStr: string) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { totalIncome: 0, totalSpent: 0, monthlyCashFlow: 0 };
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
   const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
 
   const { data: transactions, error } = await supabase
@@ -227,7 +234,7 @@ export async function getDashboardSummary(monthYearStr: string) {
       amount,
       category:categories ( type )
     `)
-    .eq('user_id', authData.user.id)
+    .eq('user_id', ownerId)
     .gte('date', startDate)
     .lt('date', nextMonth);
 
@@ -266,10 +273,11 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
   const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
 
   // 1. Fetch this user's active categories in their saved order.
-  const categories = (await getUserCategories(supabase, authData.user.id)).filter(
+  const categories = (await getUserCategories(supabase, ownerId)).filter(
     (category) => category.active,
   );
 
@@ -277,7 +285,7 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
   const { data: transactions } = await supabase
     .from('transactions')
     .select('amount, category_id')
-    .eq('user_id', authData.user.id)
+    .eq('user_id', ownerId)
     .gte('date', startDate)
     .lt('date', nextMonth);
 
@@ -285,7 +293,7 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
   const { data: budgets } = await supabase
     .from('monthly_budgets')
     .select('category_id, planned_amount')
-    .eq('user_id', authData.user.id)
+    .eq('user_id', ownerId)
     .eq('month', startDate);
 
   // Calculate total spent per category
@@ -318,16 +326,17 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { totalBudget: 0, totalSpent: 0, categoriesBudget: [] };
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
   const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
 
-  const categories = (await getUserCategories(supabase, authData.user.id)).filter(
+  const categories = (await getUserCategories(supabase, ownerId)).filter(
     (category) => category.active && category.type !== 'income',
   );
 
   let query = supabase
     .from('transactions')
     .select('amount, category_id')
-    .eq('user_id', authData.user.id)
+    .eq('user_id', ownerId)
     .gte('date', startDate)
     .lt('date', nextMonth);
 
@@ -351,7 +360,7 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
   const { data: budgets } = await supabase
     .from('monthly_budgets')
     .select('category_id, planned_amount')
-    .eq('user_id', authData.user.id)
+    .eq('user_id', ownerId)
     .eq('month', startDate);
   const budgetByCat: Record<string, number> = {};
   (budgets || []).forEach((budget) => {

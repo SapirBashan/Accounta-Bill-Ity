@@ -2,7 +2,7 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 import { KeyRound } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const supabase = createBrowserClient(
@@ -12,6 +12,12 @@ const supabase = createBrowserClient(
 
 export default function LoginPage() {
   const router = useRouter();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -25,12 +31,35 @@ export default function LoginPage() {
   }, [router]);
 
   const handleGoogleLogin = async () => {
+    setError('');
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+  };
+
+  const handleEmailAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    const result = isSignUp
+      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth/callback` } })
+      : await supabase.auth.signInWithPassword({ email, password });
+
+    if (result.error) {
+      setError(result.error.message);
+    } else if (isSignUp && !result.data.session) {
+      setMessage('נשלח אליכם אימייל לאישור החשבון. לאחר האישור תוכלו להתחבר.');
+    } else {
+      router.push('/');
+      router.refresh();
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -43,6 +72,59 @@ export default function LoginPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-black text-retro-border">התחברות למערכת</h1>
           <p className="text-xs font-bold text-retro-border/60">ניהול התקציב האישי והמשפחתי</p>
+        </div>
+
+        <form onSubmit={handleEmailAuth} className="space-y-3 text-right">
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="כתובת אימייל"
+            className="w-full p-3 bg-white border-2 border-retro-border rounded-xl font-bold outline-none"
+            dir="ltr"
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="סיסמה"
+            className="w-full p-3 bg-white border-2 border-retro-border rounded-xl font-bold outline-none"
+            dir="ltr"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-retro-green text-retro-border font-black border-[3px] border-retro-border rounded-xl shadow-retro hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
+          >
+            {loading ? 'טוען...' : isSignUp ? 'יצירת חשבון עם אימייל' : 'התחברות עם אימייל'}
+          </button>
+        </form>
+
+        {(error || message) && (
+          <p className={`text-xs font-bold ${error ? 'text-retro-terracotta' : 'text-retro-green'}`}>
+            {error || message}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignUp((current) => !current);
+            setError('');
+            setMessage('');
+          }}
+          className="text-xs font-black text-retro-border underline"
+        >
+          {isSignUp ? 'כבר יש לי חשבון' : 'יצירת חשבון חדש עם אימייל'}
+        </button>
+
+        <div className="flex items-center gap-2 text-xs font-bold text-retro-border/50">
+          <span className="h-px flex-1 bg-retro-border/20" />
+          או
+          <span className="h-px flex-1 bg-retro-border/20" />
         </div>
 
         <button
