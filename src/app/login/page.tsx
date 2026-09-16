@@ -19,6 +19,10 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const authOrigin = process.env.NODE_ENV === 'production'
+    ? 'https://accountabillity-azure.vercel.app'
+    : process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -35,7 +39,7 @@ export default function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/auth/callback`,
+        redirectTo: `${authOrigin}/auth/callback`,
       },
     });
   };

@@ -5,8 +5,9 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-  const redirectOrigin = configuredOrigin || origin;
+  const redirectOrigin = process.env.NODE_ENV === 'production'
+    ? 'https://accountabillity-azure.vercel.app'
+    : process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || origin;
   const requestedNext = searchParams.get('next') ?? '/';
   const next = requestedNext.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/';
 
