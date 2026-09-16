@@ -60,7 +60,22 @@ export default function HeaderMenu() {
       }
     }
     init();
-    return () => { isMounted = false; };
+    const refreshMembers = () => {
+      if (document.visibilityState === 'visible') loadMembers();
+    };
+    const channel = supabase
+      .channel('household-members-menu')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'household_members' }, refreshMembers)
+      .subscribe();
+    window.addEventListener('focus', refreshMembers);
+    document.addEventListener('visibilitychange', refreshMembers);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', refreshMembers);
+      document.removeEventListener('visibilitychange', refreshMembers);
+      supabase.removeChannel(channel);
+    };
   }, [loadMembers]);
 
   const handlePayerChange = (name: string) => {

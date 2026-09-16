@@ -52,6 +52,23 @@ export default function SettingsPage() {
       setMembers(memberList);
     }
     loadAccount();
+
+    const refreshMembers = () => {
+      if (document.visibilityState !== 'visible') return;
+      getHouseholdMembers().then(setMembers);
+    };
+    const channel = supabase
+      .channel('household-members-settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'household_members' }, refreshMembers)
+      .subscribe();
+    window.addEventListener('focus', refreshMembers);
+    document.addEventListener('visibilitychange', refreshMembers);
+
+    return () => {
+      window.removeEventListener('focus', refreshMembers);
+      document.removeEventListener('visibilitychange', refreshMembers);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const toggleTheme = () => {
