@@ -79,7 +79,10 @@ export default function SortableCategoryList<T>({
         <div
           key={getId(item)}
           data-category-id={getId(item)}
-          onDragOver={(event) => event.preventDefault()}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (draggingId) moveItem(draggingId, getId(item));
+          }}
           onDrop={() => {
             if (draggingId) moveItem(draggingId, getId(item));
             setDraggingId(null);
@@ -93,6 +96,8 @@ export default function SortableCategoryList<T>({
               aria-label="גרור קטגוריה"
               onDragStart={(event) => {
                 event.stopPropagation();
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', getId(item));
                 setDraggingId(getId(item));
               }}
               onDragEnd={() => setDraggingId(null)}
