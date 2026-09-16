@@ -31,18 +31,21 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
     return [];
   }
 
-  // Seed initial defaults if account has no members yet
-  if (!data || data.length === 0) {
-    const defaults = [{ name: 'משתמש 1' }, { name: 'משתמש 2' }];
-    const { data: seeded } = await supabase
-      .from('household_members')
-      .insert(defaults.map((m) => ({ name: m.name, user_id: ownerId })))
-      .select('id, name, email');
+  const currentEmail = authData.user.email?.trim().toLowerCase();
+  const emailMembers = (data || []).filter((member) => member.email);
 
-    return seeded || [];
+  if (currentEmail && !emailMembers.some((member) => member.email?.toLowerCase() === currentEmail)) {
+    emailMembers.unshift({
+      id: `current-${authData.user.id}`,
+      name: currentEmail,
+      email: currentEmail,
+    });
   }
 
-  return data;
+  return emailMembers.map((member) => ({
+    ...member,
+    name: member.email || member.name,
+  }));
 }
 
 /**
