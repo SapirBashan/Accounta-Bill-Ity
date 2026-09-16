@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { ensureUserCategoryPreferences, getUserCategories } from '@/lib/category-data';
 import { getHouseholdOwnerId } from '@/lib/household';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 export type SpreadsheetExpense = {
   name: string;
@@ -239,7 +239,7 @@ export async function getSpreadsheetExportData() {
 }
 
 type ExportStyle = {
-  fill?: { fgColor: { rgb: string } };
+  fill?: { patternType: 'solid'; fgColor: { rgb: string } };
   font?: { bold?: boolean; color?: { rgb: string }; sz?: number };
   alignment?: { horizontal?: 'left' | 'center' | 'right'; vertical?: 'center'; wrapText?: boolean };
   border?: {
@@ -281,10 +281,10 @@ function buildStyledMonthlySheet(
   const sheet: XLSX.WorkSheet = {};
   const border = { style: 'thin' as const, color: { rgb: '808080' } };
   const base = { alignment: { vertical: 'center' as const }, border: { top: border, bottom: border, left: border, right: border } };
-  const green = { ...base, fill: { fgColor: { rgb: '93C47D' } }, font: { bold: true, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
-  const yellow = { ...base, fill: { fgColor: { rgb: 'FFFF00' } }, font: { bold: true, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
+  const green = { ...base, fill: { patternType: 'solid' as const, fgColor: { rgb: '93C47D' } }, font: { bold: true, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
+  const yellow = { ...base, fill: { patternType: 'solid' as const, fgColor: { rgb: 'FFFF00' } }, font: { bold: true, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
   const money = { ...base, numFmt: '₪#,##0.00', alignment: { horizontal: 'right' as const, vertical: 'center' as const } };
-  const title = { ...base, fill: { fgColor: { rgb: '92D050' } }, font: { bold: true, sz: 16, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
+  const title = { ...base, fill: { patternType: 'solid' as const, fgColor: { rgb: '92D050' } }, font: { bold: true, sz: 16, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
   const budgetMap = new Map(budgets.filter((budget) => budget.month === `${month}-01`).map((budget) => [budget.category_id, Number(budget.planned_amount) || 0]));
   const spentMap = new Map<string, number>();
   transactions.filter((transaction) => transaction.date.startsWith(month)).forEach((transaction) => {
@@ -292,7 +292,14 @@ function buildStyledMonthlySheet(
   });
   const fixed = categories.filter((category) => category.type === 'fixed_expense');
   const variable = categories.filter((category) => category.type === 'variable_expense');
-  const maxRows = Math.max(fixed.length, variable.length, 1);
+  const makeLayout = (items: typeof categories) => items.reduce<Array<{ kind: 'group' | 'category'; label: string; category?: typeof categories[number] }>>((layout, category) => {
+    if (layout.at(-1)?.label !== category.group_name) layout.push({ kind: 'group', label: category.group_name });
+    layout.push({ kind: 'category', label: category.name, category });
+    return layout;
+  }, []);
+  const fixedLayout = makeLayout(fixed);
+  const variableLayout = makeLayout(variable);
+  const maxRows = Math.max(fixedLayout.length, variableLayout.length, 1);
   const firstDataRow = 5;
   const lastDataRow = firstDataRow + maxRows - 1;
   setExportCell(sheet, 'B2', `תקציב חודשי - ${sheetName}`, title);
@@ -303,6 +310,12 @@ function buildStyledMonthlySheet(
   ['הוצאה', 'תקציב', 'הוצאות בפועל', 'יתרה'].forEach((value, index) => setExportCell(sheet, `${excelColumn(7 + index)}4`, value, green));
   ['מדד', 'סכום', 'הערה'].forEach((value, index) => setExportCell(sheet, `${excelColumn(12 + index)}4`, value, yellow));
 
+  const merges: XLSX.Range[] = [
+    { s: { r: 1, c: 1 }, e: { r: 1, c: 14 } },
+    { s: { r: 2, c: 1 }, e: { r: 2, c: 4 } },
+    { s: { r: 2, c: 6 }, e: { r: 2, c: 9 } },
+    { s: { r: 2, c: 11 }, e: { r: 2, c: 14 } },
+  ];
   const writeExpense = (category: typeof categories[number], row: number, nameColumn: number, budgetColumn: number) => {
     const budget = budgetMap.get(category.id) || 0;
     const spent = spentMap.get(category.id) || 0;
@@ -311,8 +324,17 @@ function buildStyledMonthlySheet(
     setExportCell(sheet, `${excelColumn(budgetColumn + 1)}${row}`, spent, money);
     setExportCell(sheet, `${excelColumn(budgetColumn + 2)}${row}`, budget - spent, money);
   };
-  fixed.forEach((category, index) => writeExpense(category, firstDataRow + index, 2, 3));
-  variable.forEach((category, index) => writeExpense(category, firstDataRow + index, 7, 8));
+  const writeLayout = (layout: ReturnType<typeof makeLayout>, nameColumn: number, budgetColumn: number) => layout.forEach((item, index) => {
+    const row = firstDataRow + index;
+    if (item.kind === 'group') {
+      setExportCell(sheet, `${excelColumn(nameColumn)}${row}`, item.label, green);
+      merges.push({ s: { r: row - 1, c: nameColumn - 1 }, e: { r: row - 1, c: budgetColumn + 1 } });
+    } else if (item.category) {
+      writeExpense(item.category, row, nameColumn, budgetColumn);
+    }
+  });
+  writeLayout(fixedLayout, 2, 3);
+  writeLayout(variableLayout, 7, 8);
   const totalRow = lastDataRow + 1;
   setExportCell(sheet, `B${totalRow}`, 'סהכ קבועות', green);
   setExportCell(sheet, `C${totalRow}`, 0, money, `SUM(C${firstDataRow}:C${lastDataRow})`);
@@ -348,6 +370,7 @@ function buildStyledMonthlySheet(
   setExportCell(sheet, 'P5', 'חסכון', { font: { bold: true } });
   setExportCell(sheet, 'Q5', 0, money, `M${incomeRow + 1}`);
   sheet['!ref'] = `B2:Q${Math.max(totalRow, incomeRow + 1)}`;
+  sheet['!merges'] = merges;
   sheet['!cols'] = [
     { wch: 2 }, { wch: 24 }, { wch: 13 }, { wch: 15 }, { wch: 13 }, { wch: 2 },
     { wch: 24 }, { wch: 13 }, { wch: 15 }, { wch: 13 }, { wch: 2 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 2 }, { wch: 14 },
@@ -360,7 +383,7 @@ function buildStyledMonthlySheet(
 function buildAnnualSheet(months: string[], sheetNames: string[]) {
   const sheet: XLSX.WorkSheet = {};
   const border = { style: 'thin' as const, color: { rgb: '808080' } };
-  const header = { fill: { fgColor: { rgb: '92D050' } }, font: { bold: true }, alignment: { horizontal: 'center' as const }, border: { top: border, bottom: border, left: border, right: border } };
+  const header = { fill: { patternType: 'solid' as const, fgColor: { rgb: '92D050' } }, font: { bold: true }, alignment: { horizontal: 'center' as const }, border: { top: border, bottom: border, left: border, right: border } };
   const money = { numFmt: '₪#,##0.00', alignment: { horizontal: 'right' as const }, border: { top: border, bottom: border, left: border, right: border } };
   setExportCell(sheet, 'B2', 'סיכום שנתי', { ...header, font: { bold: true, sz: 16 } });
   ['שנה', 'חודש', 'הכנסות', 'הוצאות', 'תקציב', 'חסכון'].forEach((value, index) => setExportCell(sheet, `${excelColumn(2 + index)}4`, value, header));
