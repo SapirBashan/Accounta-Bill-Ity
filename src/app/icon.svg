@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Retro Container -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="#E07A5F" stroke="#1F2937" stroke-width="20"/>
+  
+  <!-- Shadow for inner receipt -->
+  <rect x="136" y="106" width="260" height="320" rx="24" fill="#1F2937"/>
+  
+  <!-- Inner Receipt Card -->
+  <rect x="126" y="96" width="260" height="320" rx="24" fill="#F4F1DE" stroke="#1F2937" stroke-width="14"/>
+  
+  <!-- Decorative Receipt Header Line -->
+  <line x1="166" y1="156" x2="346" y2="156" stroke="#1F2937" stroke-width="12" stroke-linecap="round"/>
+  
+  <!-- Shekel / Currency Symbol -->
+  <text x="256" y="310" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="140" fill="#1F2937">₪</text>
+  
+  <!-- Dotted Receipt Line -->
+  <line x1="166" y1="356" x2="346" y2="356" stroke="#E07A5F" stroke-width="10" stroke-dasharray="12 12" stroke-linecap="round"/>
+</svg>
