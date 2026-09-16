@@ -238,20 +238,168 @@ export async function getSpreadsheetExportData() {
   };
 }
 
+type ExportStyle = {
+  fill?: { fgColor: { rgb: string } };
+  font?: { bold?: boolean; color?: { rgb: string }; sz?: number };
+  alignment?: { horizontal?: 'left' | 'center' | 'right'; vertical?: 'center'; wrapText?: boolean };
+  border?: {
+    top?: { style: 'thin'; color: { rgb: string } };
+    bottom?: { style: 'thin'; color: { rgb: string } };
+    left?: { style: 'thin'; color: { rgb: string } };
+    right?: { style: 'thin'; color: { rgb: string } };
+  };
+  numFmt?: string;
+};
+
+function setExportCell(sheet: XLSX.WorkSheet, address: string, value: string | number, style: ExportStyle, formula?: string) {
+  sheet[address] = {
+    t: typeof value === 'number' ? 'n' : 's',
+    v: value,
+    ...(formula ? { f: formula } : {}),
+    s: style,
+  } as XLSX.CellObject & { s: ExportStyle };
+}
+
+function excelColumn(index: number) {
+  let result = '';
+  let value = index;
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+  return result;
+}
+
+function buildStyledMonthlySheet(
+  month: string,
+  sheetName: string,
+  categories: Array<{ id: string; name: string; group_name: string; type: string }>,
+  budgets: Array<{ category_id: string; month: string; planned_amount: number }>,
+  transactions: Array<{ category_id: string; amount: number; date: string }>,
+) {
+  const sheet: XLSX.WorkSheet = {};
+  const border = { style: 'thin' as const, color: { rgb: '808080' } };
+  const base = { alignment: { vertical: 'center' as const }, border: { top: border, bottom: border, left: border, right: border } };
+  const green = { ...base, fill: { fgColor: { rgb: '93C47D' } }, font: { bold: true, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
+  const yellow = { ...base, fill: { fgColor: { rgb: 'FFFF00' } }, font: { bold: true, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
+  const money = { ...base, numFmt: '₪#,##0.00', alignment: { horizontal: 'right' as const, vertical: 'center' as const } };
+  const title = { ...base, fill: { fgColor: { rgb: '92D050' } }, font: { bold: true, sz: 16, color: { rgb: '1F2937' } }, alignment: { horizontal: 'center' as const, vertical: 'center' as const } };
+  const budgetMap = new Map(budgets.filter((budget) => budget.month === `${month}-01`).map((budget) => [budget.category_id, Number(budget.planned_amount) || 0]));
+  const spentMap = new Map<string, number>();
+  transactions.filter((transaction) => transaction.date.startsWith(month)).forEach((transaction) => {
+    spentMap.set(transaction.category_id, (spentMap.get(transaction.category_id) || 0) + Number(transaction.amount));
+  });
+  const fixed = categories.filter((category) => category.type === 'fixed_expense');
+  const variable = categories.filter((category) => category.type === 'variable_expense');
+  const maxRows = Math.max(fixed.length, variable.length, 1);
+  const firstDataRow = 5;
+  const lastDataRow = firstDataRow + maxRows - 1;
+  setExportCell(sheet, 'B2', `תקציב חודשי - ${sheetName}`, title);
+  setExportCell(sheet, 'B3', 'הוצאות קבועות', green);
+  setExportCell(sheet, 'G3', 'הוצאות משתנות', green);
+  setExportCell(sheet, 'L3', 'סיכום חודשי', yellow);
+  ['הוצאה', 'תקציב', 'הוצאות בפועל', 'יתרה'].forEach((value, index) => setExportCell(sheet, `${excelColumn(2 + index)}4`, value, green));
+  ['הוצאה', 'תקציב', 'הוצאות בפועל', 'יתרה'].forEach((value, index) => setExportCell(sheet, `${excelColumn(7 + index)}4`, value, green));
+  ['מדד', 'סכום', 'הערה'].forEach((value, index) => setExportCell(sheet, `${excelColumn(12 + index)}4`, value, yellow));
+
+  const writeExpense = (category: typeof categories[number], row: number, nameColumn: number, budgetColumn: number) => {
+    const budget = budgetMap.get(category.id) || 0;
+    const spent = spentMap.get(category.id) || 0;
+    setExportCell(sheet, `${excelColumn(nameColumn)}${row}`, category.name, base);
+    setExportCell(sheet, `${excelColumn(budgetColumn)}${row}`, budget, money);
+    setExportCell(sheet, `${excelColumn(budgetColumn + 1)}${row}`, spent, money);
+    setExportCell(sheet, `${excelColumn(budgetColumn + 2)}${row}`, budget - spent, money);
+  };
+  fixed.forEach((category, index) => writeExpense(category, firstDataRow + index, 2, 3));
+  variable.forEach((category, index) => writeExpense(category, firstDataRow + index, 7, 8));
+  const totalRow = lastDataRow + 1;
+  setExportCell(sheet, `B${totalRow}`, 'סהכ קבועות', green);
+  setExportCell(sheet, `C${totalRow}`, 0, money, `SUM(C${firstDataRow}:C${lastDataRow})`);
+  setExportCell(sheet, `D${totalRow}`, 0, money, `SUM(D${firstDataRow}:D${lastDataRow})`);
+  setExportCell(sheet, `E${totalRow}`, 0, money, `SUM(E${firstDataRow}:E${lastDataRow})`);
+  setExportCell(sheet, `G${totalRow}`, 'סהכ משתנות', green);
+  setExportCell(sheet, `H${totalRow}`, 0, money, `SUM(H${firstDataRow}:H${lastDataRow})`);
+  setExportCell(sheet, `I${totalRow}`, 0, money, `SUM(I${firstDataRow}:I${lastDataRow})`);
+  setExportCell(sheet, `J${totalRow}`, 0, money, `SUM(J${firstDataRow}:J${lastDataRow})`);
+  setExportCell(sheet, `L${totalRow}`, 'סהכ הוצאות', yellow);
+  setExportCell(sheet, `M${totalRow}`, 0, money, `C${totalRow}+H${totalRow}`);
+  setExportCell(sheet, `N${totalRow}`, 0, money, `D${totalRow}+I${totalRow}`);
+  setExportCell(sheet, `O${totalRow}`, 0, money, `E${totalRow}+J${totalRow}`);
+  setExportCell(sheet, 'L5', 'הכנסות', green);
+  setExportCell(sheet, 'M5', 'סכום', green);
+  const income = categories.filter((category) => category.type === 'income');
+  income.forEach((category, index) => {
+    const row = 6 + index;
+    setExportCell(sheet, `L${row}`, category.name, base);
+    setExportCell(sheet, `M${row}`, spentMap.get(category.id) || 0, money);
+  });
+  const incomeRow = Math.max(7, 6 + income.length);
+  setExportCell(sheet, `L${incomeRow}`, 'סהכ הכנסות', yellow);
+  setExportCell(sheet, `M${incomeRow}`, 0, money, `SUM(M6:M${incomeRow - 1})`);
+  setExportCell(sheet, `L${incomeRow + 1}`, 'חסכון', yellow);
+  setExportCell(sheet, `M${incomeRow + 1}`, 0, money, `M${incomeRow}-N${totalRow}`);
+  setExportCell(sheet, 'P2', 'הכנסות', { font: { bold: true } });
+  setExportCell(sheet, 'Q2', 0, money, `M${incomeRow}`);
+  setExportCell(sheet, 'P3', 'תקציב', { font: { bold: true } });
+  setExportCell(sheet, 'Q3', 0, money, `M${totalRow}`);
+  setExportCell(sheet, 'P4', 'הוצאות', { font: { bold: true } });
+  setExportCell(sheet, 'Q4', 0, money, `N${totalRow}`);
+  setExportCell(sheet, 'P5', 'חסכון', { font: { bold: true } });
+  setExportCell(sheet, 'Q5', 0, money, `M${incomeRow + 1}`);
+  sheet['!ref'] = `B2:Q${Math.max(totalRow, incomeRow + 1)}`;
+  sheet['!cols'] = [
+    { wch: 2 }, { wch: 24 }, { wch: 13 }, { wch: 15 }, { wch: 13 }, { wch: 2 },
+    { wch: 24 }, { wch: 13 }, { wch: 15 }, { wch: 13 }, { wch: 2 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 2 }, { wch: 14 },
+  ];
+  sheet['!rows'] = [{}, { hpt: 28 }, { hpt: 22 }, { hpt: 22 }, ...Array.from({ length: Math.max(totalRow, incomeRow + 1) }, () => ({ hpt: 20 }))];
+  sheet['!freeze'] = { xSplit: 0, ySplit: 4 };
+  return sheet;
+}
+
+function buildAnnualSheet(months: string[], sheetNames: string[]) {
+  const sheet: XLSX.WorkSheet = {};
+  const border = { style: 'thin' as const, color: { rgb: '808080' } };
+  const header = { fill: { fgColor: { rgb: '92D050' } }, font: { bold: true }, alignment: { horizontal: 'center' as const }, border: { top: border, bottom: border, left: border, right: border } };
+  const money = { numFmt: '₪#,##0.00', alignment: { horizontal: 'right' as const }, border: { top: border, bottom: border, left: border, right: border } };
+  setExportCell(sheet, 'B2', 'סיכום שנתי', { ...header, font: { bold: true, sz: 16 } });
+  ['שנה', 'חודש', 'הכנסות', 'הוצאות', 'תקציב', 'חסכון'].forEach((value, index) => setExportCell(sheet, `${excelColumn(2 + index)}4`, value, header));
+  months.forEach((month, index) => {
+    const row = 5 + index;
+    const sheetName = sheetNames[index];
+    const ref = `'${sheetName}'`;
+    setExportCell(sheet, `B${row}`, Number(month.slice(0, 4)), header);
+    setExportCell(sheet, `C${row}`, month.slice(5), header);
+    setExportCell(sheet, `D${row}`, 0, money, `${ref}!Q2`);
+    setExportCell(sheet, `E${row}`, 0, money, `${ref}!Q4`);
+    setExportCell(sheet, `F${row}`, 0, money, `${ref}!Q3`);
+    setExportCell(sheet, `G${row}`, 0, money, `D${row}-E${row}`);
+  });
+  const avgRow = 5 + months.length + 1;
+  setExportCell(sheet, `C${avgRow}`, 'ממוצע חודשי', header);
+  ['D', 'E', 'F', 'G'].forEach((column) => setExportCell(sheet, `${column}${avgRow}`, 0, money, `AVERAGE(${column}5:${column}${avgRow - 2})`));
+  sheet['!ref'] = `B2:G${avgRow}`;
+  sheet['!cols'] = [{ wch: 2 }, { wch: 10 }, { wch: 14 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+  return sheet;
+}
+
 export async function getSpreadsheetExportFile() {
   const data = await getSpreadsheetExportData();
   const workbook = XLSX.utils.book_new();
-  const sheets = [
-    ['קטגוריות', data.categories],
-    ['תקציבים', data.budgets],
-    ['תנועות', data.transactions],
-    ['משתמשים', data.members],
-  ] as const;
-  sheets.forEach(([name, rows]) => {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), name);
-  });
+  const monthKeys = [...new Set([
+    ...data.budgets.map((budget) => budget.month.slice(0, 7)),
+    ...data.transactions.map((transaction) => transaction.date.slice(0, 7)),
+  ])].sort();
+  const monthNames = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+  const sheetNames = monthKeys.map((month) => `${monthNames[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`);
+  monthKeys.forEach((month, index) => XLSX.utils.book_append_sheet(
+    workbook,
+    buildStyledMonthlySheet(month, sheetNames[index], data.categories, data.budgets, data.transactions),
+    sheetNames[index].slice(0, 31),
+  ));
+  XLSX.utils.book_append_sheet(workbook, buildAnnualSheet(monthKeys, sheetNames), 'סיכום שנתי');
   return {
-    filename: `accounta-bill-export-${new Date().toISOString().slice(0, 10)}.xlsx`,
-    content: XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' }),
+    filename: `accounta-bill-budget-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    content: XLSX.write(workbook, { type: 'base64', bookType: 'xlsx', cellStyles: true }),
   };
 }
