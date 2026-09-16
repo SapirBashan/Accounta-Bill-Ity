@@ -362,20 +362,19 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
     (category) => category.active,
   );
 
-  // 2. Fetch transactions for the current month
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('amount, category_id')
-    .eq('user_id', ownerId)
-    .gte('date', startDate)
-    .lt('date', nextMonth);
-
-  // 3. Fetch monthly planned budgets
-  const { data: budgets } = await supabase
-    .from('monthly_budgets')
-    .select('category_id, planned_amount')
-    .eq('user_id', ownerId)
-    .eq('month', startDate);
+  const [{ data: transactions }, { data: budgets }] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('amount, category_id')
+      .eq('user_id', ownerId)
+      .gte('date', startDate)
+      .lt('date', nextMonth),
+    supabase
+      .from('monthly_budgets')
+      .select('category_id, planned_amount')
+      .eq('user_id', ownerId)
+      .eq('month', startDate),
+  ]);
 
   // Calculate total spent per category
   const spentMap: Record<string, number> = {};
