@@ -6,12 +6,23 @@ import BottomNav from '@/components/BottomNav';
 import HeaderMenu from '@/components/HeaderMenu';
 import MonthSelector from '@/components/MonthSelector';
 import ThemeInitializer from '@/components/ThemeInitializer';
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 
 const heebo = Heebo({ subsets: ['hebrew', 'latin'] });
 
 export const metadata: Metadata = {
   title: 'Accounta-Bill',
   description: 'ניהול תקציב משפחתי',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Accounta-Bill',
+  },
 };
 
 export default function RootLayout({
@@ -23,6 +34,7 @@ export default function RootLayout({
     <html lang="he" dir="rtl">
       <body className={`${heebo.className} bg-retro-bg text-retro-border min-h-screen pb-24 antialiased selection:bg-retro-yellow`}>
         <ThemeInitializer />
+        <ServiceWorkerRegistration />
         
         {/* Fixed Retro Header */}
         <header className="bg-retro-green border-b-[3px] border-retro-border rounded-b-3xl px-4 py-4 mb-6 shadow-[0px_4px_0px_0px_#1F2937] relative">
