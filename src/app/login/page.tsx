@@ -47,16 +47,24 @@ export default function LoginPage() {
     setMessage('');
 
     const result = isSignUp
-      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/auth/callback` } })
+      ? await supabase.auth.signUp({ email, password })
       : await supabase.auth.signInWithPassword({ email, password });
 
     if (result.error) {
       setError(result.error.message);
-    } else if (isSignUp && !result.data.session) {
-      setMessage('נשלח אליכם אימייל לאישור החשבון. לאחר האישור תוכלו להתחבר.');
     } else {
-      router.push('/');
-      router.refresh();
+      if (isSignUp && !result.data.session) {
+        const loginResult = await supabase.auth.signInWithPassword({ email, password });
+        if (loginResult.error) {
+          setError('לא ניתן להתחבר מיד. יש לבטל את אישור האימייל בהגדרות Supabase.');
+        } else {
+          router.push('/');
+          router.refresh();
+        }
+      } else {
+        router.push('/');
+        router.refresh();
+      }
     }
 
     setLoading(false);
