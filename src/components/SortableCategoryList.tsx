@@ -79,20 +79,23 @@ export default function SortableCategoryList<T>({
         <div
           key={getId(item)}
           data-category-id={getId(item)}
-          draggable
-          onDragStart={() => setDraggingId(getId(item))}
           onDragOver={(event) => event.preventDefault()}
           onDrop={() => {
             if (draggingId) moveItem(draggingId, getId(item));
             setDraggingId(null);
           }}
-          onDragEnd={() => setDraggingId(null)}
           className={draggingId === getId(item) ? 'opacity-50' : ''}
         >
           <div className="flex items-stretch gap-2">
             <button
               type="button"
+              draggable
               aria-label="גרור קטגוריה"
+              onDragStart={(event) => {
+                event.stopPropagation();
+                setDraggingId(getId(item));
+              }}
+              onDragEnd={() => setDraggingId(null)}
               onTouchStart={(event) => handleTouchStart(event, getId(item))}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
