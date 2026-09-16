@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, Download, FileSpreadsheet, LogOut, Moon, Palette, Save, Shield, Sun, Upload, UserRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import * as XLSX from 'xlsx';
 import { getHouseholdMembers, leaveHousehold, type HouseholdMember } from '@/actions/members';
-import { getSpreadsheetExportData, importSpreadsheetData, type SpreadsheetMonth } from '@/actions/data';
+import { getSpreadsheetExportFile, importSpreadsheetWorkbook } from '@/actions/data';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -135,71 +134,6 @@ export default function SettingsPage() {
     router.refresh();
   };
 
-  const parseAmount = (value: unknown) => {
-    if (value === null || value === undefined || value === '' || String(value).includes('#')) return 0;
-    const normalized = String(value).replace(/[₪,\s]/g, '').replace(/[()]/g, '');
-    const amount = Number(normalized);
-    return Number.isFinite(amount) ? Math.abs(amount) : 0;
-  };
-
-  const parseWorkbook = (file: File): Promise<SpreadsheetMonth[]> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const workbook = XLSX.read(reader.result, { type: 'array', raw: false });
-        const months: SpreadsheetMonth[] = [];
-        const monthNumbers = new Map([
-          ['ינואר', 1], ['פבואר', 2], ['פברואר', 2], ['מרץ', 3], ['אפריל', 4],
-          ['מאי', 5], ['יוני', 6], ['יולי', 7], ['אוגוסט', 8], ['ספטמבר', 9],
-          ['אוקטובר', 10], ['נובמבר', 11], ['דצמבר', 12],
-        ]);
-        workbook.SheetNames.forEach((sheetName) => {
-          const monthNumber = [...monthNumbers.entries()].find(([name]) => sheetName.startsWith(name))?.[1];
-          if (!monthNumber || sheetName === 'סיכום שנתי') return;
-          const yearMatch = sheetName.match(/\.(\d{2})/);
-          const year = yearMatch ? 2000 + Number(yearMatch[1]) : 2026;
-          const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: null, raw: false });
-          let fixedGroup = 'אחר';
-          let variableGroup = 'אחר';
-          const expenses: SpreadsheetMonth['expenses'] = [];
-          let income = 0;
-          rows.forEach((row) => {
-            const fixedName = typeof row[0] === 'string' ? row[0].trim() : '';
-            const variableName = typeof row[5] === 'string' ? row[5].trim() : '';
-            const fixedHasNumbers = row[1] !== null && row[1] !== undefined && row[1] !== '';
-            const variableHasNumbers = row[6] !== null && row[6] !== undefined && row[6] !== '';
-            if (fixedName && !fixedHasNumbers && !/^סך|^סה/.test(fixedName)) fixedGroup = fixedName;
-            if (variableName && !variableHasNumbers && !/^סך|^סה/.test(variableName)) variableGroup = variableName;
-            if (fixedName && fixedHasNumbers && !/^סך|^סה|^הוצאות$|^תקציב$/.test(fixedName)) {
-              expenses.push({ name: fixedName, groupName: fixedGroup, type: 'fixed_expense', budget: parseAmount(row[1]), spent: parseAmount(row[2]) });
-            }
-            if (variableName && variableHasNumbers && !/^סך|^סה|^הוצאות$|^תקציב$/.test(variableName)) {
-              expenses.push({ name: variableName, groupName: variableGroup, type: 'variable_expense', budget: parseAmount(row[6]), spent: parseAmount(row[7]) });
-            }
-            const incomeName = typeof row[10] === 'string' ? row[10].trim() : '';
-            if (incomeName && row[12] !== null && row[12] !== undefined && row[12] !== '' && !incomeName.startsWith('תזרים')) {
-              income += parseAmount(row[12]);
-            }
-          });
-          const deduped = new Map<string, SpreadsheetMonth['expenses'][number]>();
-          expenses.forEach((expense) => {
-            const key = `${expense.name}|${expense.groupName}|${expense.type}`;
-            const previous = deduped.get(key);
-            deduped.set(key, previous
-              ? { ...expense, budget: Math.max(previous.budget, expense.budget), spent: previous.spent + expense.spent }
-              : expense);
-          });
-          months.push({ month: `${year}-${String(monthNumber).padStart(2, '0')}`, expenses: [...deduped.values()], income });
-        });
-        resolve(months);
-      } catch (parseError) {
-        reject(parseError);
-      }
-    };
-    reader.onerror = () => reject(reader.error || new Error('לא ניתן לקרוא את הקובץ'));
-    reader.readAsArrayBuffer(file);
-  });
-
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -208,9 +142,10 @@ export default function SettingsPage() {
     setError('');
     setStatus('');
     try {
-      const months = await parseWorkbook(file);
-      if (months.length === 0) throw new Error('לא נמצאו גיליונות חודשיים בקובץ');
-      const result = await importSpreadsheetData(months);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+      const result = await importSpreadsheetWorkbook(btoa(binary));
       setStatus(`הייבוא הושלם: ${result.budgets} תקציבים ו-${result.transactions} תנועות`);
       router.refresh();
     } catch (importError) {
@@ -224,16 +159,15 @@ export default function SettingsPage() {
     setDataBusy(true);
     setError('');
     try {
-      const data = await getSpreadsheetExportData();
-      const workbook = XLSX.utils.book_new();
-      const sheets = [
-        ['קטגוריות', data.categories],
-        ['תקציבים', data.budgets],
-        ['תנועות', data.transactions],
-        ['משתמשים', data.members],
-      ] as const;
-      sheets.forEach(([name, rows]) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), name));
-      XLSX.writeFile(workbook, `accounta-bill-export-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const data = await getSpreadsheetExportFile();
+      const binary = atob(data.content);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = data.filename;
+      link.click();
+      URL.revokeObjectURL(url);
       setStatus('הקובץ הורד בהצלחה');
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : 'לא ניתן לייצא את הנתונים');

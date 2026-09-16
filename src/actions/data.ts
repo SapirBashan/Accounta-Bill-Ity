@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { ensureUserCategoryPreferences, getUserCategories } from '@/lib/category-data';
 import { getHouseholdOwnerId } from '@/lib/household';
+import * as XLSX from 'xlsx';
 
 export type SpreadsheetExpense = {
   name: string;
@@ -18,6 +19,74 @@ export type SpreadsheetMonth = {
   expenses: SpreadsheetExpense[];
   income: number;
 };
+
+function parseAmount(value: unknown) {
+  if (value === null || value === undefined || value === '' || String(value).includes('#')) return 0;
+  const normalized = String(value).replace(/[₪,\s]/g, '').replace(/[()]/g, '');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.abs(amount) : 0;
+}
+
+function parseSpreadsheetWorkbook(base64: string): SpreadsheetMonth[] {
+  const workbook = XLSX.read(Buffer.from(base64, 'base64'), { type: 'buffer', raw: false });
+  const monthNumbers = new Map([
+    ['ינואר', 1], ['פבואר', 2], ['פברואר', 2], ['מרץ', 3], ['אפריל', 4],
+    ['מאי', 5], ['יוני', 6], ['יולי', 7], ['אוגוסט', 8], ['ספטמבר', 9],
+    ['אוקטובר', 10], ['נובמבר', 11], ['דצמבר', 12],
+  ]);
+  const months: SpreadsheetMonth[] = [];
+
+  workbook.SheetNames.forEach((sheetName) => {
+    const monthNumber = [...monthNumbers.entries()].find(([name]) => sheetName.startsWith(name))?.[1];
+    if (!monthNumber || sheetName === 'סיכום שנתי') return;
+    const yearMatch = sheetName.match(/\.(\d{2})/);
+    const year = yearMatch ? 2000 + Number(yearMatch[1]) : 2026;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
+      header: 1,
+      defval: null,
+      raw: false,
+    });
+    let fixedGroup = 'אחר';
+    let variableGroup = 'אחר';
+    const expenses: SpreadsheetMonth['expenses'] = [];
+    let income = 0;
+
+    rows.forEach((row) => {
+      const fixedName = typeof row[0] === 'string' ? row[0].trim() : '';
+      const variableName = typeof row[5] === 'string' ? row[5].trim() : '';
+      const fixedHasNumbers = row[1] !== null && row[1] !== undefined && row[1] !== '';
+      const variableHasNumbers = row[6] !== null && row[6] !== undefined && row[6] !== '';
+      if (fixedName && !fixedHasNumbers && !/^סך|^סה/.test(fixedName)) fixedGroup = fixedName;
+      if (variableName && !variableHasNumbers && !/^סך|^סה/.test(variableName)) variableGroup = variableName;
+      if (fixedName && fixedHasNumbers && !/^סך|^סה|^הוצאות$|^תקציב$/.test(fixedName)) {
+        expenses.push({ name: fixedName, groupName: fixedGroup, type: 'fixed_expense', budget: parseAmount(row[1]), spent: parseAmount(row[2]) });
+      }
+      if (variableName && variableHasNumbers && !/^סך|^סה|^הוצאות$|^תקציב$/.test(variableName)) {
+        expenses.push({ name: variableName, groupName: variableGroup, type: 'variable_expense', budget: parseAmount(row[6]), spent: parseAmount(row[7]) });
+      }
+      const incomeName = typeof row[10] === 'string' ? row[10].trim() : '';
+      if (incomeName && row[12] !== null && row[12] !== undefined && row[12] !== '' && !incomeName.startsWith('תזרים')) {
+        income += parseAmount(row[12]);
+      }
+    });
+
+    const deduped = new Map<string, SpreadsheetMonth['expenses'][number]>();
+    expenses.forEach((expense) => {
+      const key = `${expense.name}|${expense.groupName}|${expense.type}`;
+      const previous = deduped.get(key);
+      deduped.set(key, previous
+        ? { ...expense, budget: Math.max(previous.budget, expense.budget), spent: previous.spent + expense.spent }
+        : expense);
+    });
+    months.push({ month: `${year}-${String(monthNumber).padStart(2, '0')}`, expenses: [...deduped.values()], income });
+  });
+
+  return months;
+}
+
+export async function importSpreadsheetWorkbook(base64: string) {
+  return importSpreadsheetData(parseSpreadsheetWorkbook(base64));
+}
 
 export async function importSpreadsheetData(months: SpreadsheetMonth[]) {
   const supabase = await getSupabaseServer();
@@ -165,5 +234,23 @@ export async function getSpreadsheetExportData() {
     budgets: budgetsResult.data || [],
     transactions: transactionsResult.data || [],
     members: membersResult.data || [],
+  };
+}
+
+export async function getSpreadsheetExportFile() {
+  const data = await getSpreadsheetExportData();
+  const workbook = XLSX.utils.book_new();
+  const sheets = [
+    ['קטגוריות', data.categories],
+    ['תקציבים', data.budgets],
+    ['תנועות', data.transactions],
+    ['משתמשים', data.members],
+  ] as const;
+  sheets.forEach(([name, rows]) => {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), name);
+  });
+  return {
+    filename: `accounta-bill-export-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    content: XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' }),
   };
 }
