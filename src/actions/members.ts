@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
-import { getHouseholdOwnerId } from '@/lib/household';
 
 export type HouseholdMember = {
   id: string;
@@ -18,13 +17,11 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
   const { data: authData } = await supabase.auth.getUser();
 
   if (!authData?.user) return [];
-  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
-  const { data, error } = await supabase
-    .from('household_members')
-    .select('id, name, email')
-    .eq('user_id', ownerId)
-    .order('created_at', { ascending: true });
+  const { data, error } = await supabase.rpc('get_household_members') as {
+    data: HouseholdMember[] | null;
+    error: { message: string } | null;
+  };
 
   if (error) {
     console.error('Error fetching members:', error.message);
@@ -37,14 +34,14 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
   if (currentEmail && !emailMembers.some((member) => member.email?.toLowerCase() === currentEmail)) {
     emailMembers.unshift({
       id: `current-${authData.user.id}`,
-      name: currentEmail,
+        name: currentEmail,
       email: currentEmail,
     });
   }
 
   return emailMembers.map((member) => ({
     ...member,
-    name: member.email || member.name,
+      name: member.email?.split('@')[0] || member.name,
   }));
 }
 
