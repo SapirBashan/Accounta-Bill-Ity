@@ -79,7 +79,7 @@ begin
     raise exception 'authentication_required';
   end if;
 
-  if normalized_email is null or normalized_email !~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$' then
+  if normalized_email is null or normalized_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
     raise exception 'invalid_email';
   end if;
 

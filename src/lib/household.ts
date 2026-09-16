@@ -5,5 +5,10 @@ export async function getHouseholdOwnerId(
   fallbackUserId: string,
 ): Promise<string> {
   const { data, error } = await supabase.rpc('get_household_owner_id');
-  return !error && typeof data === 'string' ? data : fallbackUserId;
+  if (error) {
+    console.error('Household sharing is not configured:', error.message);
+    return fallbackUserId;
+  }
+
+  return typeof data === 'string' ? data : fallbackUserId;
 }

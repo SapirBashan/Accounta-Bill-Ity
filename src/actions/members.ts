@@ -55,15 +55,11 @@ export async function inviteHouseholdMember(email: string) {
   if (!authData?.user) {
     throw new Error('חובה להתחבר למערכת כדי להוסיף משתמש');
   }
-  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
-
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) return;
 
-  const { error } = await supabase.from('household_members').insert({
-    user_id: ownerId,
-    name: normalizedEmail.split('@')[0],
-    email: normalizedEmail,
+  const { error } = await supabase.rpc('invite_household_member', {
+    p_email: normalizedEmail,
   });
 
   if (error) {
