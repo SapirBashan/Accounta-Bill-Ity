@@ -50,16 +50,16 @@ export async function addTransaction(data: NewTransaction) {
   if (authError || !authData.user) {
     throw new Error('חובה להתחבר למערכת כדי להוסיף תנועה');
   }
-  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
+  //const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
 
-  const { error } = await supabase.from('transactions').insert({
-    category_id: data.category_id,
-    amount: data.amount,
-    date: data.date,
-    user_name: data.user_name,
-    notes: data.notes,
-    user_id: ownerId,
-  });
+// ✅ CORRECT: Omitting user_id lets the database apply the household owner's ID automatically
+const { error } = await supabase.from('transactions').insert({
+  category_id: data.category_id,
+  amount: data.amount,
+  date: data.date,
+  user_name: data.user_name,
+  notes: data.notes
+});
 
   if (error) {
     console.error('❌ Failed to add transaction:', error.message);
