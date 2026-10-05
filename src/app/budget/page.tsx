@@ -14,6 +14,8 @@ import {
 } from '@/actions/budget';
 import SortableCategoryList from '@/components/SortableCategoryList';
 import CategoryCard from '@/components/CategoryCard';
+import { getBillingCycleInfo } from '@/actions/billing-cycle';
+import { isBillingMonth } from '@/lib/billing-cycle';
 
 type BudgetItem = {
   category_id: string;
@@ -44,14 +46,25 @@ function BudgetPlanningPageContent() {
   const [customCategoryGroup, setCustomCategoryGroup] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<'fixed_expense' | 'variable_expense'>('variable_expense');
   const [categoryError, setCategoryError] = useState('');
+  const [defaultMonth, setDefaultMonth] = useState('');
 
   const selectedMonth = searchParams.get('month');
-  const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+  const currentMonth = isBillingMonth(selectedMonth)
     ? selectedMonth
-    : new Date().toISOString().slice(0, 7);
+    : defaultMonth;
+
+  useEffect(() => {
+    getBillingCycleInfo()
+      .then((info) => setDefaultMonth(info.currentMonth))
+      .catch((error) => {
+        setCategoryError(error instanceof Error ? error.message : 'לא ניתן לטעון את הגדרות מחזור החיוב');
+        setLoading(false);
+      });
+  }, []);
 
   // 1. Standalone fetch function (No useCallback needed)
   const fetchBudgets = async () => {
+    if (!currentMonth) return;
     const [budgetData, catalogData] = await Promise.all([
       getMonthlyBudgets(currentMonth),
       getCategoryCatalog(),

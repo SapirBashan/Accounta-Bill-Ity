@@ -4,6 +4,8 @@ import {
   getDashboardPageData,
   TransactionItem,
 } from '@/actions/transactions';
+import { getBillingCycleInfo } from '@/actions/billing-cycle';
+import { isBillingMonth } from '@/lib/billing-cycle';
 
 type MainPageProps = {
   searchParams: Promise<{ month?: string }>;
@@ -11,9 +13,10 @@ type MainPageProps = {
 
 export default async function MainPage({ searchParams }: MainPageProps) {
   const params = await searchParams;
-  const selectedMonth = /^\d{4}-\d{2}$/.test(params.month || '')
-    ? params.month as string
-    : new Date().toISOString().slice(0, 7);
+  const { currentMonth } = await getBillingCycleInfo();
+  const selectedMonth = isBillingMonth(params.month)
+    ? params.month
+    : currentMonth;
   const { summary, transactions, categorySummaries } = await getDashboardPageData(selectedMonth);
   const expenseCategories = categorySummaries.filter((category) => category.type !== 'income');
   const totalBudget = expenseCategories.reduce((total, category) => total + category.budget, 0);

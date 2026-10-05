@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { addTransaction, getCategoryCardSummaries } from '@/actions/transactions';
 import { getHouseholdMembers, HouseholdMember } from '@/actions/members';
 import { reorderCategories } from '@/actions/budget';
+import { getBillingCycleInfo } from '@/actions/billing-cycle';
+import { getBillingCycleStartDate, isBillingMonth } from '@/lib/billing-cycle';
 import SortableCategoryList from '@/components/SortableCategoryList';
 import CategoryCard from '@/components/CategoryCard';
 
@@ -29,20 +31,37 @@ function QuickAddPageContent() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [defaultMonth, setDefaultMonth] = useState('');
+  const [cycleStartDay, setCycleStartDay] = useState(1);
+  const [cycleInfoLoaded, setCycleInfoLoaded] = useState(false);
   const router = useRouter();
 
   const selectedMonth = searchParams.get('month');
-  const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+  const currentMonth = isBillingMonth(selectedMonth)
     ? selectedMonth
-    : new Date().toISOString().slice(0, 7);
-  const today = new Date();
-  const currentSystemMonth = today.toISOString().slice(0, 7);
-  const transactionDate = currentMonth === currentSystemMonth
-    ? today.toISOString().split('T')[0]
-    : `${currentMonth}-01`;
+    : defaultMonth;
+  const today = new Date().toISOString().split('T')[0];
+  const transactionDate = currentMonth
+    ? currentMonth === defaultMonth
+      ? today
+      : getBillingCycleStartDate(currentMonth, cycleStartDay)
+    : '';
+
+  useEffect(() => {
+    getBillingCycleInfo()
+      .then((info) => {
+        setCycleStartDay(info.cycleStartDay);
+        setDefaultMonth(info.currentMonth);
+        setCycleInfoLoaded(true);
+      })
+      .catch((error) => {
+        setErrorMessage(error instanceof Error ? error.message : 'לא ניתן לטעון את הגדרות מחזור החיוב');
+      });
+  }, []);
 
   useEffect(() => {
     async function loadData() {
+      if (!currentMonth) return;
       const [cardData, memberList] = await Promise.all([
         getCategoryCardSummaries(currentMonth),
         getHouseholdMembers(),
@@ -212,7 +231,7 @@ function QuickAddPageContent() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !cycleInfoLoaded}
                 className="w-full py-3.5 bg-retro-green text-retro-border font-black border-2 border-retro-border rounded-xl shadow-retro hover:-translate-y-0.5 active:translate-y-0.5 transition-all"
               >
                 {loading ? 'שומר...' : 'אשר והוסף הוצאה'}

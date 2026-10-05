@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Download, FileSpreadsheet, LogOut, Moon, Palette, Save, Shield, Sun, Upload, UserRound } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, Download, FileSpreadsheet, LogOut, Moon, Palette, Save, Shield, Sun, Upload, UserRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { getHouseholdMembers, leaveHousehold, type HouseholdMember } from '@/actions/members';
 import { getSpreadsheetExportFile, importSpreadsheetWorkbook } from '@/actions/data';
+import { getBillingCycleInfo, setBillingCycleStartDay } from '@/actions/billing-cycle';
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +33,8 @@ export default function SettingsPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [dataBusy, setDataBusy] = useState(false);
+  const [cycleStartDay, setCycleStartDay] = useState(1);
+  const [savingCycle, setSavingCycle] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -43,9 +46,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function loadAccount() {
-      const [{ data: userData }, memberList] = await Promise.all([
+      const [{ data: userData }, memberList, billingCycle] = await Promise.all([
         supabase.auth.getUser(),
         getHouseholdMembers(),
+        getBillingCycleInfo(),
       ]);
       const user = userData.user;
       const name = typeof user?.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : '';
@@ -53,6 +57,7 @@ export default function SettingsPage() {
       setDisplayName(name);
       setNewName(name);
       setMembers(memberList);
+      setCycleStartDay(billingCycle.cycleStartDay);
     }
     loadAccount();
 
@@ -73,6 +78,22 @@ export default function SettingsPage() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const saveBillingCycle = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingCycle(true);
+    setError('');
+    setStatus('');
+    try {
+      await setBillingCycleStartDay(cycleStartDay);
+      setStatus('מחזור החיוב נשמר בהצלחה');
+      router.refresh();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'לא ניתן לשמור את מחזור החיוב');
+    } finally {
+      setSavingCycle(false);
+    }
+  };
 
   const toggleTheme = () => {
     const nextIsDark = !isDark;
@@ -264,6 +285,37 @@ export default function SettingsPage() {
           <Palette size={19} />
           <h2 className="font-black">העדפות</h2>
         </div>
+        <form onSubmit={saveBillingCycle} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CalendarDays size={18} />
+            <label htmlFor="billing-cycle-start-day" className="font-black text-sm">תחילת חודש התקציב</label>
+          </div>
+          <p className="text-xs font-bold text-retro-border/60">
+            החודש יחושב מהיום שנבחר ועד היום שלפניו בחודש הבא.
+          </p>
+          <div className="flex gap-2">
+            <select
+              id="billing-cycle-start-day"
+              value={cycleStartDay}
+              onChange={(event) => setCycleStartDay(Number(event.target.value))}
+              className="min-w-0 flex-1 p-2.5 bg-white border-2 border-retro-border rounded-xl font-bold"
+            >
+              {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                <option key={day} value={day}>יום {day} בכל חודש</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={savingCycle}
+              className="px-4 bg-retro-green border-2 border-retro-border rounded-xl font-black disabled:opacity-50"
+            >
+              {savingCycle ? 'שומר...' : 'שמירה'}
+            </button>
+          </div>
+          <p className="text-[11px] font-bold text-retro-border/50">
+            בחודשים קצרים, המחזור יתחיל ביום האחרון של החודש.
+          </p>
+        </form>
         <button type="button" onClick={toggleTheme} className="w-full flex items-center justify-between p-3 bg-retro-bg border-2 border-retro-border rounded-xl font-black">
           <span className="flex items-center gap-2">{isDark ? <Moon size={18} /> : <Sun size={18} />} מצב כהה</span>
           <span className="text-xs bg-white border border-retro-border rounded-lg px-2 py-1">{isDark ? 'פעיל' : 'כבוי'}</span>

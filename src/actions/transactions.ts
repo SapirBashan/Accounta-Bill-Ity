@@ -4,16 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { getUserCategories } from '@/lib/category-data';
 import { getHouseholdOwnerId } from '@/lib/household';
-
-function getMonthDateRange(monthYearStr: string) {
-  const [year, month] = monthYearStr.split('-').map(Number);
-  const nextMonth = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
-
-  return {
-    startDate: `${monthYearStr}-01`,
-    nextMonth,
-  };
-}
+import { getBillingCycleRange } from '@/lib/billing-cycle';
+import { getHouseholdBillingCycleStartDay } from '@/lib/billing-cycle-settings';
 
 export type CategoryBudget = {
   id: string;
@@ -106,7 +98,8 @@ export async function getIncomePageData(monthYearStr: string) {
   const incomeCategoryIds = allCategories
     .filter((category) => category.type === 'income')
     .map((category) => category.id);
-  const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+  const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+  const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
   if (incomeCategoryIds.length === 0) return { categories, transactions: [] };
 
   const { data: transactions } = await supabase
@@ -115,7 +108,7 @@ export async function getIncomePageData(monthYearStr: string) {
       .eq('user_id', ownerId)
       .in('category_id', incomeCategoryIds)
       .gte('date', startDate)
-      .lt('date', nextMonth)
+      .lt('date', nextStartDate)
       .order('date', { ascending: false });
 
   const categoryMap = new Map(allCategories.map((category) => [category.id, category]));
@@ -183,10 +176,11 @@ export async function getRecentTransactions(limit = 5, monthYearStr?: string): P
     .order('date', { ascending: false });
 
   if (monthYearStr) {
-    const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+    const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+    const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
     query = query
       .gte('date', startDate)
-      .lt('date', nextMonth);
+      .lt('date', nextStartDate);
   }
 
   const { data, error } = await query.limit(limit);
@@ -220,7 +214,9 @@ export async function getDashboardPageData(monthYearStr: string) {
   }
 
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
-  const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+  const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+  const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
+  const budgetMonth = `${monthYearStr}-01`;
   const [categories, transactionResult, budgetsResult] = await Promise.all([
     getUserCategories(supabase, ownerId),
     supabase
@@ -235,13 +231,13 @@ export async function getDashboardPageData(monthYearStr: string) {
       `)
       .eq('user_id', ownerId)
       .gte('date', startDate)
-      .lt('date', nextMonth)
+      .lt('date', nextStartDate)
       .order('date', { ascending: false }),
     supabase
       .from('monthly_budgets')
       .select('category_id, planned_amount')
       .eq('user_id', ownerId)
-      .eq('month', startDate),
+      .eq('month', budgetMonth),
   ]);
   const transactionRows = transactionResult.data;
   const budgets = budgetsResult.data;
@@ -307,7 +303,8 @@ export async function getDashboardSummary(monthYearStr: string) {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { totalIncome: 0, totalSpent: 0, monthlyCashFlow: 0 };
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
-  const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+  const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+  const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
 
   const { data: transactions, error } = await supabase
     .from('transactions')
@@ -317,7 +314,7 @@ export async function getDashboardSummary(monthYearStr: string) {
     `)
     .eq('user_id', ownerId)
     .gte('date', startDate)
-    .lt('date', nextMonth);
+    .lt('date', nextStartDate);
 
   if (error || !transactions) {
     return { totalIncome: 0, totalSpent: 0, monthlyCashFlow: 0 };
@@ -355,7 +352,9 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
-  const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+  const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+  const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
+  const budgetMonth = `${monthYearStr}-01`;
 
   // 1. Fetch this user's active categories in their saved order.
   const categories = (await getUserCategories(supabase, ownerId)).filter(
@@ -368,12 +367,12 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
       .select('amount, category_id')
       .eq('user_id', ownerId)
       .gte('date', startDate)
-      .lt('date', nextMonth),
+      .lt('date', nextStartDate),
     supabase
       .from('monthly_budgets')
       .select('category_id, planned_amount')
       .eq('user_id', ownerId)
-      .eq('month', startDate),
+      .eq('month', budgetMonth),
   ]);
 
   // Calculate total spent per category
@@ -407,7 +406,9 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { totalBudget: 0, totalSpent: 0, categoriesBudget: [] };
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
-  const { startDate, nextMonth } = getMonthDateRange(monthYearStr);
+  const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+  const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
+  const budgetMonth = `${monthYearStr}-01`;
 
   const categories = (await getUserCategories(supabase, ownerId)).filter(
     (category) => category.active && category.type !== 'income',
@@ -418,7 +419,7 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
     .select('amount, category_id')
     .eq('user_id', ownerId)
     .gte('date', startDate)
-    .lt('date', nextMonth);
+    .lt('date', nextStartDate);
 
   if (userName && userName !== 'all') {
     query = query.eq('user_name', userName);
@@ -441,7 +442,7 @@ export async function getBudgetSummary(monthYearStr: string, userName?: string) 
     .from('monthly_budgets')
     .select('category_id, planned_amount')
     .eq('user_id', ownerId)
-    .eq('month', startDate);
+    .eq('month', budgetMonth);
   const budgetByCat: Record<string, number> = {};
   (budgets || []).forEach((budget) => {
     budgetByCat[budget.category_id] = Number(budget.planned_amount) || 0;
@@ -506,8 +507,11 @@ export async function getYearSummary(year: number): Promise<YearSummary> {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return emptySummary;
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
-  const startDate = `${year}-01-01`;
-  const endDate = `${year + 1}-01-01`;
+  const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
+  const { startDate } = getBillingCycleRange(`${year}-01`, cycleStartDay);
+  const { startDate: endDate } = getBillingCycleRange(`${year + 1}-01`, cycleStartDay);
+  const budgetStart = `${year}-01-01`;
+  const budgetEnd = `${year + 1}-01-01`;
   const categories = await getUserCategories(supabase, ownerId);
   const categoryMap = new Map(categories.map((category) => [category.id, category]));
   const expenseCategories = categories.filter((category) => category.type !== 'income');
@@ -523,8 +527,8 @@ export async function getYearSummary(year: number): Promise<YearSummary> {
       .from('monthly_budgets')
       .select('category_id, month, planned_amount')
       .eq('user_id', ownerId)
-      .gte('month', startDate)
-      .lt('month', endDate),
+      .gte('month', budgetStart)
+      .lt('month', budgetEnd),
   ]);
 
   const monthly = emptyMonths.map((month) => ({ ...month }));

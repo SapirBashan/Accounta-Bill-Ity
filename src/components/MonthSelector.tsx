@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { isBillingMonth } from '@/lib/billing-cycle';
 
 const HEBREW_MONTHS = [
   'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
@@ -24,10 +25,10 @@ export default function MonthSelector({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedMonth = searchParams.get('month');
-  const initialMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+  const initialMonth = isBillingMonth(selectedMonth)
     ? Number(selectedMonth.slice(5, 7)) - 1
     : currentMonth;
-  const initialYear = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+  const initialYear = isBillingMonth(selectedMonth)
     ? Number(selectedMonth.slice(0, 4))
     : currentYear;
   const [month, setMonth] = useState<number>(initialMonth);

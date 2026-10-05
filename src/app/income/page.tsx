@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Minus, Plus, WalletCards } from 'lucide-react';
 import { addIncome, getIncomePageData } from '@/actions/transactions';
 import { createCategory, setCategoryActive } from '@/actions/budget';
+import { getBillingCycleInfo } from '@/actions/billing-cycle';
+import { getBillingCycleStartDate, isBillingMonth } from '@/lib/billing-cycle';
 
 type IncomeCategory = {
   id: string;
@@ -24,10 +26,13 @@ type IncomeTransaction = {
 function IncomePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [defaultMonth, setDefaultMonth] = useState('');
+  const [cycleStartDay, setCycleStartDay] = useState(1);
+  const [cycleInfoLoaded, setCycleInfoLoaded] = useState(false);
   const selectedMonth = searchParams.get('month');
-  const currentMonth = selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)
+  const currentMonth = isBillingMonth(selectedMonth)
     ? selectedMonth
-    : new Date().toISOString().slice(0, 7);
+    : defaultMonth;
   const [categories, setCategories] = useState<IncomeCategory[]>([]);
   const [transactions, setTransactions] = useState<IncomeTransaction[]>([]);
   const [categoryId, setCategoryId] = useState('');
@@ -38,7 +43,20 @@ function IncomePageContent() {
   const [sourceName, setSourceName] = useState('');
   const [sourceError, setSourceError] = useState('');
 
+  useEffect(() => {
+    getBillingCycleInfo()
+      .then((info) => {
+        setCycleStartDay(info.cycleStartDay);
+        setDefaultMonth(info.currentMonth);
+        setCycleInfoLoaded(true);
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : 'לא ניתן לטעון את הגדרות מחזור החיוב');
+      });
+  }, []);
+
   const loadData = async () => {
+    if (!currentMonth) return;
     const data = await getIncomePageData(currentMonth);
     const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
     setCategories(data.categories.filter((category) => !hiddenIds.includes(category.id)));
@@ -60,7 +78,12 @@ function IncomePageContent() {
     setSaving(true);
     setError('');
     try {
-      await addIncome(categoryId, Number(amount), `${currentMonth}-01`, notes || undefined);
+      await addIncome(
+        categoryId,
+        Number(amount),
+        getBillingCycleStartDate(currentMonth, cycleStartDay),
+        notes || undefined,
+      );
       setAmount('');
       setNotes('');
       await loadData();
@@ -140,7 +163,7 @@ function IncomePageContent() {
               onChange={(event) => setNotes(event.target.value)}
               className="w-full p-2 bg-white border-2 border-retro-border rounded-lg font-bold outline-none"
             />
-            <button type="submit" disabled={saving} className="w-full py-2 bg-retro-green border-2 border-retro-border rounded-lg font-black flex justify-center gap-2">
+            <button type="submit" disabled={saving || !cycleInfoLoaded} className="w-full py-2 bg-retro-green border-2 border-retro-border rounded-lg font-black flex justify-center gap-2">
               <Plus size={18} /> {saving ? 'שומר...' : 'הוסף הכנסה'}
             </button>
             {error && <p className="text-xs font-bold text-retro-terracotta">{error}</p>}

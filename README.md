@@ -17,6 +17,7 @@ Deployment dashboard:
 - Monthly dashboard with income, spending, balance, and budget progress.
 - Quick expense entry from the Add page.
 - Monthly budget planning by category.
+- Configurable household billing cycle, with any day of the month as its start.
 - Income tracking.
 - Transaction history.
 - Yearly summary with monthly charts, averages, and spending distribution.
@@ -80,7 +81,7 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-The migrations create and configure categories, monthly budgets, transactions, user preferences, shared household members, household access functions, security policies, and realtime membership updates.
+The migrations create and configure categories, monthly budgets, transactions, user preferences, shared household members, household billing-cycle settings, household access functions, security policies, and realtime membership updates.
 
 ## Verification Commands
 
@@ -106,7 +107,7 @@ npm start
 | `/income` | Income tracking |
 | `/history` | Transaction history |
 | `/summary` | Yearly summary and charts |
-| `/settings` | Account, household, theme, import, and export settings |
+| `/settings` | Account, household, billing-cycle, theme, import, and export settings |
 | `/login` | Authentication |
 
 ## Excel Import and Export

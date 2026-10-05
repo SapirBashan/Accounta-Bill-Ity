@@ -1,5 +1,7 @@
 import { getRecentTransactions, TransactionItem } from '@/actions/transactions';
 import { ShoppingBag, ArrowUpRight } from 'lucide-react';
+import { getBillingCycleInfo } from '@/actions/billing-cycle';
+import { isBillingMonth } from '@/lib/billing-cycle';
 
 type HistoryPageProps = {
   searchParams: Promise<{ month?: string }>;
@@ -7,9 +9,10 @@ type HistoryPageProps = {
 
 export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const params = await searchParams;
-  const selectedMonth = /^\d{4}-\d{2}$/.test(params.month || '')
+  const { currentMonth } = await getBillingCycleInfo();
+  const selectedMonth = isBillingMonth(params.month || null)
     ? params.month
-    : new Date().toISOString().slice(0, 7);
+    : currentMonth;
   const transactions: TransactionItem[] = await getRecentTransactions(50, selectedMonth);
 
   return (
