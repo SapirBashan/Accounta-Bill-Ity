@@ -32,14 +32,23 @@ export default async function MainPage({ searchParams }: MainPageProps) {
   const selectedMonth = isBillingMonth(params.month)
     ? params.month
     : currentMonth;
-  const { summary, transactions, categorySummaries } = await getDashboardPageData(selectedMonth);
+  const dashboardDataPromise = getDashboardPageData(selectedMonth);
+  const currentMonthDataPromise = selectedMonth === currentMonth
+    ? dashboardDataPromise
+    : getDashboardPageData(currentMonth);
+  const [{ summary, transactions, categorySummaries }, currentMonthData] = await Promise.all([
+    dashboardDataPromise,
+    currentMonthDataPromise,
+  ]);
   const expenseCategories = categorySummaries.filter((category) => category.type !== 'income');
   const totalBudget = expenseCategories.reduce((total, category) => total + category.budget, 0);
   const totalBudgetSpent = expenseCategories.reduce((total, category) => total + category.spent, 0);
   const budgetPercent = totalBudget > 0 ? Math.round((totalBudgetSpent / totalBudget) * 100) : 0;
   const progressWidth = Math.min(budgetPercent, 100);
   const isOverBudget = budgetPercent > 100;
-  const spendingCategories = expenseCategories.filter((category) => category.spent > 0);
+  const spendingCategories = currentMonthData.categorySummaries
+    .filter((category) => category.type !== 'income' && category.spent > 0)
+    .sort((left, right) => right.spent - left.spent);
   const pieTotal = spendingCategories.reduce((total, category) => total + category.spent, 0);
   const pieSlices = spendingCategories.reduce<Array<typeof spendingCategories[number] & {
     startAngle: number;
@@ -92,7 +101,7 @@ export default async function MainPage({ searchParams }: MainPageProps) {
       <section className="bg-white border-[3px] border-retro-border rounded-2xl p-5 shadow-retro">
         <div className="mb-4">
           <h2 className="text-lg font-black text-retro-border">הוצאות לפי קטגוריה</h2>
-          <p className="text-xs font-bold text-retro-border/60 mt-1">התפלגות ההוצאות בחודש הנבחר</p>
+          <p className="text-xs font-bold text-retro-border/60 mt-1">התפלגות ההוצאות בחודש הנוכחי, מהגבוה לנמוך</p>
         </div>
         {pieSlices.length === 0 ? (
           <div className="text-center py-6 text-sm font-bold text-retro-border/50 border-2 border-dashed border-retro-border/20 rounded-xl">
