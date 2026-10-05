@@ -7,6 +7,21 @@ import {
 import { getBillingCycleInfo } from '@/actions/billing-cycle';
 import { isBillingMonth } from '@/lib/billing-cycle';
 
+const PIE_COLORS = ['#E07A5F', '#94A884', '#F4EA8A', '#6B8E9B', '#C98B7B', '#7D6B5D', '#A8B89A'];
+
+function piePath(startAngle: number, endAngle: number) {
+  const center = 50;
+  const radius = 48;
+  const start = (Math.PI * startAngle) / 180;
+  const end = (Math.PI * endAngle) / 180;
+  const startX = center + radius * Math.cos(start);
+  const startY = center + radius * Math.sin(start);
+  const endX = center + radius * Math.cos(end);
+  const endY = center + radius * Math.sin(end);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${center} ${center} L ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY} Z`;
+}
+
 type MainPageProps = {
   searchParams: Promise<{ month?: string }>;
 };
@@ -24,6 +39,22 @@ export default async function MainPage({ searchParams }: MainPageProps) {
   const budgetPercent = totalBudget > 0 ? Math.round((totalBudgetSpent / totalBudget) * 100) : 0;
   const progressWidth = Math.min(budgetPercent, 100);
   const isOverBudget = budgetPercent > 100;
+  const spendingCategories = expenseCategories.filter((category) => category.spent > 0);
+  const pieTotal = spendingCategories.reduce((total, category) => total + category.spent, 0);
+  const pieSlices = spendingCategories.reduce<Array<typeof spendingCategories[number] & {
+    startAngle: number;
+    endAngle: number;
+    color: string;
+  }>>((slices, category, index) => {
+    const startAngle = slices.at(-1)?.endAngle ?? -90;
+    const endAngle = startAngle + (category.spent / pieTotal) * 360;
+    return [...slices, {
+      ...category,
+      startAngle,
+      endAngle,
+      color: PIE_COLORS[index % PIE_COLORS.length],
+    }];
+  }, []);
 
   return (
     <div className="p-4 max-w-lg mx-auto space-y-6 dir-rtl">
@@ -56,6 +87,60 @@ export default async function MainPage({ searchParams }: MainPageProps) {
           <p className="text-4xl font-black text-retro-border mt-1">₪{summary.monthlyCashFlow}</p>
         </div>
       </div>
+
+      {/* Current month spending breakdown */}
+      <section className="bg-white border-[3px] border-retro-border rounded-2xl p-5 shadow-retro">
+        <div className="mb-4">
+          <h2 className="text-lg font-black text-retro-border">הוצאות לפי קטגוריה</h2>
+          <p className="text-xs font-bold text-retro-border/60 mt-1">התפלגות ההוצאות בחודש הנבחר</p>
+        </div>
+        {pieSlices.length === 0 ? (
+          <div className="text-center py-6 text-sm font-bold text-retro-border/50 border-2 border-dashed border-retro-border/20 rounded-xl">
+            אין הוצאות להצגה בחודש הזה
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <svg
+                viewBox="0 0 100 100"
+                className="w-48 h-48 max-w-full"
+                role="img"
+                aria-label={`התפלגות הוצאות לפי קטגוריה, סך הכל ₪${Math.round(pieTotal).toLocaleString('he-IL')}`}
+              >
+                {pieSlices.length === 1 ? (
+                  <circle cx="50" cy="50" r="48" fill={pieSlices[0].color} stroke="#1F2937" strokeWidth="1.5" />
+                ) : (
+                  pieSlices.map((slice) => (
+                    <path
+                      key={slice.id}
+                      d={piePath(slice.startAngle, slice.endAngle)}
+                      fill={slice.color}
+                      stroke="#1F2937"
+                      strokeWidth="0.8"
+                    />
+                  ))
+                )}
+              </svg>
+            </div>
+            <p className="text-center text-sm font-black text-retro-border">
+              סך הוצאות: ₪{Math.round(pieTotal).toLocaleString('he-IL')}
+            </p>
+            <ul className="grid grid-cols-1 gap-2">
+              {pieSlices.map((slice) => (
+                <li key={slice.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 font-bold text-retro-border">
+                    <span className="h-3 w-3 shrink-0 rounded-sm border border-retro-border" style={{ backgroundColor: slice.color }} />
+                    <span className="truncate">{slice.name}</span>
+                  </span>
+                  <span className="shrink-0 font-black text-retro-border" dir="ltr">
+                    ₪{Math.round(slice.spent).toLocaleString('he-IL')} · {Math.round((slice.spent / pieTotal) * 100)}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
 
       {/* Monthly budget status */}
       <div className="bg-white border-[3px] border-retro-border rounded-2xl p-5 shadow-retro">
