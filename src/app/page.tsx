@@ -4,8 +4,6 @@ import {
   getDashboardPageData,
   TransactionItem,
 } from '@/actions/transactions';
-import { getBillingCycleInfo } from '@/actions/billing-cycle';
-import { isBillingMonth } from '@/lib/billing-cycle';
 
 const PIE_COLORS = ['#E07A5F', '#94A884', '#F4EA8A', '#6B8E9B', '#C98B7B', '#7D6B5D', '#A8B89A'];
 
@@ -28,25 +26,19 @@ type MainPageProps = {
 
 export default async function MainPage({ searchParams }: MainPageProps) {
   const params = await searchParams;
-  const { currentMonth } = await getBillingCycleInfo();
-  const selectedMonth = isBillingMonth(params.month)
-    ? params.month
-    : currentMonth;
-  const dashboardDataPromise = getDashboardPageData(selectedMonth);
-  const currentMonthDataPromise = selectedMonth === currentMonth
-    ? dashboardDataPromise
-    : getDashboardPageData(currentMonth);
-  const [{ summary, transactions, categorySummaries }, currentMonthData] = await Promise.all([
-    dashboardDataPromise,
-    currentMonthDataPromise,
-  ]);
+  const {
+    summary,
+    transactions,
+    categorySummaries,
+    currentMonthCategorySummaries,
+  } = await getDashboardPageData(params.month);
   const expenseCategories = categorySummaries.filter((category) => category.type !== 'income');
   const totalBudget = expenseCategories.reduce((total, category) => total + category.budget, 0);
   const totalBudgetSpent = expenseCategories.reduce((total, category) => total + category.spent, 0);
   const budgetPercent = totalBudget > 0 ? Math.round((totalBudgetSpent / totalBudget) * 100) : 0;
   const progressWidth = Math.min(budgetPercent, 100);
   const isOverBudget = budgetPercent > 100;
-  const spendingCategories = currentMonthData.categorySummaries
+  const spendingCategories = currentMonthCategorySummaries
     .filter((category) => category.type !== 'income' && category.spent > 0)
     .sort((left, right) => right.spent - left.spent);
   const pieTotal = spendingCategories.reduce((total, category) => total + category.spent, 0);

@@ -7,7 +7,6 @@ import HeaderMenu from '@/components/HeaderMenu';
 import MonthSelector from '@/components/MonthSelector';
 import ThemeInitializer from '@/components/ThemeInitializer';
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
-import { getBillingCycleInfo } from '@/actions/billing-cycle';
 
 const heebo = Heebo({ subsets: ['hebrew', 'latin'] });
 
@@ -26,14 +25,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { currentMonth } = await getBillingCycleInfo();
-  const [currentYear, currentMonthNumber] = currentMonth.split('-').map(Number);
-
   return (
     <html lang="he" dir="rtl">
       <body className={`${heebo.className} bg-retro-bg text-retro-border min-h-screen pb-24 antialiased selection:bg-retro-yellow`}>
@@ -63,7 +59,7 @@ export default async function RootLayout({
                   טוען...
                 </div>
               }>
-                <MonthSelector key={currentMonth} currentMonth={currentMonthNumber - 1} currentYear={currentYear} />
+                <MonthSelector />
               </Suspense>
             </div>
             

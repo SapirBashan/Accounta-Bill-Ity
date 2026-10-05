@@ -4,7 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { getUserCategories } from '@/lib/category-data';
 import { getHouseholdOwnerId } from '@/lib/household';
-import { getBillingCycleRange } from '@/lib/billing-cycle';
+import {
+  DEFAULT_BILLING_CYCLE_START_DAY,
+  getBillingCycleRange,
+  getCurrentBillingMonth,
+  isBillingMonth,
+} from '@/lib/billing-cycle';
 import { getHouseholdBillingCycleStartDay } from '@/lib/billing-cycle-settings';
 
 export type CategoryBudget = {
@@ -202,58 +207,85 @@ export async function getRecentTransactions(limit = 5, monthYearStr?: string): P
   }));
 }
 
-export async function getDashboardPageData(monthYearStr: string) {
+export async function getDashboardPageData(requestedMonth?: string) {
   const supabase = await getSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) {
+    const currentMonth = getCurrentBillingMonth(DEFAULT_BILLING_CYCLE_START_DAY);
     return {
+      currentMonth,
       summary: { totalIncome: 0, totalSpent: 0, monthlyCashFlow: 0 },
       transactions: [],
       categorySummaries: [],
+      currentMonthCategorySummaries: [],
     };
   }
 
   const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
   const cycleStartDay = await getHouseholdBillingCycleStartDay(supabase, ownerId);
-  const { startDate, nextStartDate } = getBillingCycleRange(monthYearStr, cycleStartDay);
-  const budgetMonth = `${monthYearStr}-01`;
-  const [categories, transactionResult, budgetsResult] = await Promise.all([
+  const currentMonth = getCurrentBillingMonth(cycleStartDay);
+  const monthYearStr = isBillingMonth(requestedMonth) ? requestedMonth : currentMonth;
+  const selectedRange = getBillingCycleRange(monthYearStr, cycleStartDay);
+  const currentRange = getBillingCycleRange(currentMonth, cycleStartDay);
+  const transactionQuery = (range: typeof selectedRange) => supabase
+    .from('transactions')
+    .select(`
+      id,
+      amount,
+      date,
+      user_name,
+      notes,
+      category:categories ( id, name, group_name, type )
+    `)
+    .eq('user_id', ownerId)
+    .gte('date', range.startDate)
+    .lt('date', range.nextStartDate)
+    .order('date', { ascending: false });
+  const selectedTransactionsPromise = transactionQuery(selectedRange);
+  const currentTransactionsPromise = monthYearStr === currentMonth
+    ? selectedTransactionsPromise
+    : transactionQuery(currentRange);
+  const [categories, transactionResult, currentTransactionResult, budgetsResult] = await Promise.all([
     getUserCategories(supabase, ownerId),
-    supabase
-      .from('transactions')
-      .select(`
-        id,
-        amount,
-        date,
-        user_name,
-        notes,
-        category:categories ( id, name, group_name, type )
-      `)
-      .eq('user_id', ownerId)
-      .gte('date', startDate)
-      .lt('date', nextStartDate)
-      .order('date', { ascending: false }),
+    selectedTransactionsPromise,
+    currentTransactionsPromise,
     supabase
       .from('monthly_budgets')
       .select('category_id, planned_amount')
       .eq('user_id', ownerId)
-      .eq('month', budgetMonth),
+      .eq('month', `${monthYearStr}-01`),
   ]);
-  const transactionRows = transactionResult.data;
+  const normalizeTransactions = (transactionRows: typeof transactionResult.data) => {
+    // Supabase may return a joined one-to-one relation as an array.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return ((transactionRows || []) as any[]).map((transaction) => ({
+      id: transaction.id,
+      amount: transaction.amount,
+      date: transaction.date,
+      user_name: transaction.user_name,
+      notes: transaction.notes,
+      category: Array.isArray(transaction.category) ? transaction.category[0] || null : transaction.category,
+    })) as TransactionItem[];
+  };
+  const normalizedTransactions = normalizeTransactions(transactionResult.data);
+  const currentTransactions = monthYearStr === currentMonth
+    ? normalizedTransactions
+    : normalizeTransactions(currentTransactionResult.data);
   const budgets = budgetsResult.data;
-
-  // Supabase may return a joined one-to-one relation as an array.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const normalizedTransactions = ((transactionRows || []) as any[]).map((transaction) => ({
-    id: transaction.id,
-    amount: transaction.amount,
-    date: transaction.date,
-    user_name: transaction.user_name,
-    notes: transaction.notes,
-    category: Array.isArray(transaction.category) ? transaction.category[0] || null : transaction.category,
-  })) as TransactionItem[];
-  const spentMap: Record<string, number> = {};
   const budgetMap: Record<string, number> = {};
+  const getSpentMap = (transactions: TransactionItem[]) => {
+    const spentMap: Record<string, number> = {};
+    transactions.forEach((transaction) => {
+      if (transaction.category?.type === 'income') return;
+      const categoryId = transaction.category?.id;
+      if (categoryId) {
+        spentMap[categoryId] = (spentMap[categoryId] || 0) + (Number(transaction.amount) || 0);
+      }
+    });
+    return spentMap;
+  };
+  const spentMap = getSpentMap(normalizedTransactions);
+  const currentSpentMap = monthYearStr === currentMonth ? spentMap : getSpentMap(currentTransactions);
   let totalIncome = 0;
   let totalSpent = 0;
 
@@ -263,8 +295,6 @@ export async function getDashboardPageData(monthYearStr: string) {
       totalIncome += amount;
     } else {
       totalSpent += amount;
-      const categoryId = transaction.category?.id;
-      if (categoryId) spentMap[categoryId] = (spentMap[categoryId] || 0) + amount;
     }
   });
   (budgets || []).forEach((budget) => {
@@ -272,6 +302,7 @@ export async function getDashboardPageData(monthYearStr: string) {
   });
 
   return {
+    currentMonth,
     summary: { totalIncome, totalSpent, monthlyCashFlow: totalIncome - totalSpent },
     transactions: normalizedTransactions.slice(0, 5),
     categorySummaries: (categories || []).filter((category) => category.active).map((category) => ({
@@ -281,6 +312,14 @@ export async function getDashboardPageData(monthYearStr: string) {
       type: category.type,
       spent: spentMap[category.id] || 0,
       budget: budgetMap[category.id] ?? 0,
+    })),
+    currentMonthCategorySummaries: (categories || []).filter((category) => category.active).map((category) => ({
+      id: category.id,
+      name: category.name,
+      group_name: category.group_name,
+      type: category.type,
+      spent: currentSpentMap[category.id] || 0,
+      budget: 0,
     })),
   };
 }

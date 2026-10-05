@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isBillingMonth } from '@/lib/billing-cycle';
+import { getBillingCycleInfo } from '@/actions/billing-cycle';
 
 const HEBREW_MONTHS = [
   'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
@@ -38,6 +39,18 @@ export default function MonthSelector({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempMonth, setTempMonth] = useState<number>(month);
   const [tempYear, setTempYear] = useState<number>(year);
+
+  useEffect(() => {
+    if (isBillingMonth(selectedMonth)) return;
+    getBillingCycleInfo()
+      .then(({ currentMonth }) => {
+        setMonth(Number(currentMonth.slice(5, 7)) - 1);
+        setYear(Number(currentMonth.slice(0, 4)));
+      })
+      .catch((error) => {
+        console.error('Unable to load current billing month:', error);
+      });
+  }, [selectedMonth]);
 
   const selectMonth = (newMonth: number, newYear: number) => {
     setMonth(newMonth);
