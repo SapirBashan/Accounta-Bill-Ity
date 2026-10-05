@@ -64,6 +64,7 @@ export default function SortableCategoryList<T>({
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>, id: string) => {
     if (event.button !== 0) return;
     const pointerId = event.pointerId;
+    event.currentTarget.setPointerCapture(pointerId);
     pressRef.current = {
       id,
       pointerId,
@@ -78,9 +79,6 @@ export default function SortableCategoryList<T>({
       draggingIdRef.current = id;
       setDraggingId(id);
       button.setAttribute('aria-pressed', 'true');
-      if (!button.hasPointerCapture(pointerId)) {
-        button.setPointerCapture(pointerId);
-      }
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(30);
       }
@@ -147,8 +145,9 @@ export default function SortableCategoryList<T>({
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
               onPointerCancel={handlePointerEnd}
+              onContextMenu={(event) => event.preventDefault()}
               title="לחיצה ארוכה לסידור קטגוריות"
-              className="touch-pan-y select-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
+              className="touch-none select-none cursor-grab rounded-lg border-2 border-retro-border/20 px-1 text-retro-border/50 hover:bg-retro-yellow active:cursor-grabbing"
             >
               <GripVertical size={18} />
             </button>
