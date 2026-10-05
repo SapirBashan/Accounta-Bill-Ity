@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Menu, User, LogOut, Check, Plus, Settings, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Menu, User, LogOut, Check, Plus, Settings, Calendar, ChartNoAxesCombined, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import { getHouseholdMembers, inviteHouseholdMember, HouseholdMember } from '@/actions/members';
@@ -171,6 +171,17 @@ export default function HeaderMenu() {
                 <span className="text-xs font-black bg-white px-2 py-0.5 rounded-md border border-retro-border">
                   {HEBREW_MONTHS[selectedMonth]} {selectedYear}
                 </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push('/summary');
+                }}
+                className="w-full flex items-center gap-2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-right border-2 border-transparent hover:border-retro-border/20"
+              >
+                <ChartNoAxesCombined size={16} className="text-retro-border" />
+                <span className="text-sm font-bold text-retro-border">סיכום שנתי</span>
               </button>
 
               <button
