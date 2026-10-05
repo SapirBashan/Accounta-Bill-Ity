@@ -12,7 +12,9 @@ import { getHouseholdBillingCycleStartDay } from '@/lib/billing-cycle-settings';
 export async function getBillingCycleInfo() {
   const supabase = await getSupabaseServer();
   const { data: authData, error: authError } = await supabase.auth.getUser();
-  if (authError) throw new Error(`לא ניתן לטעון את המשתמש: ${authError.message}`);
+  if (authError && authError.name !== 'AuthSessionMissingError') {
+    throw new Error(`לא ניתן לטעון את המשתמש: ${authError.message}`);
+  }
   if (!authData.user) {
     return {
       cycleStartDay: DEFAULT_BILLING_CYCLE_START_DAY,
