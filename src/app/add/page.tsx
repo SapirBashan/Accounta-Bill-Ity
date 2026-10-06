@@ -3,10 +3,9 @@
 import { Suspense, useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { addTransaction, getCategoryCardSummaries } from '@/actions/transactions';
-import { getHouseholdMembers, HouseholdMember } from '@/actions/members';
+import { addTransaction, getCategoryCardSummaries, getQuickAddPageData } from '@/actions/transactions';
+import type { HouseholdMember } from '@/lib/household';
 import { reorderCategories } from '@/actions/budget';
-import { getBillingCycleInfo } from '@/actions/billing-cycle';
 import { getBillingCycleStartDate, isBillingMonth } from '@/lib/billing-cycle';
 import SortableCategoryList from '@/components/SortableCategoryList';
 import CategoryCard from '@/components/CategoryCard';
@@ -48,38 +47,30 @@ function QuickAddPageContent() {
     : '';
 
   useEffect(() => {
-    getBillingCycleInfo()
-      .then((info) => {
-        setCycleStartDay(info.cycleStartDay);
-        setDefaultMonth(info.currentMonth);
-        setCycleInfoLoaded(true);
-      })
-      .catch((error) => {
-        setErrorMessage(error instanceof Error ? error.message : 'לא ניתן לטעון את הגדרות מחזור החיוב');
-      });
-  }, []);
-
-  useEffect(() => {
     async function loadData() {
-      if (!currentMonth) return;
-      const [cardData, memberList] = await Promise.all([
-        getCategoryCardSummaries(currentMonth),
-        getHouseholdMembers(),
-      ]);
-      const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
-      setCategories(cardData.filter((category) => !hiddenIds.includes(category.id)));
-      setMembers(memberList);
+      setCycleInfoLoaded(false);
+      setErrorMessage('');
+      try {
+        const data = await getQuickAddPageData(selectedMonth || undefined);
+        const hiddenIds = JSON.parse(localStorage.getItem('hidden_category_ids') || '[]') as string[];
+        setCycleStartDay(data.cycleStartDay);
+        setDefaultMonth(data.currentMonth);
+        setCategories(data.categories.filter((category) => !hiddenIds.includes(category.id)));
+        setMembers(data.members);
 
-      // 3. Set Default Selected Payer
-      const savedPayer = localStorage.getItem('default_payer');
-      if (savedPayer && memberList.some((m) => m.name === savedPayer)) {
-        setUserName(savedPayer);
-      } else if (memberList.length > 0) {
-        setUserName(memberList[0].name);
+        const savedPayer = localStorage.getItem('default_payer');
+        if (savedPayer && data.members.some((member) => member.name === savedPayer)) {
+          setUserName(savedPayer);
+        } else if (data.members.length > 0) {
+          setUserName(data.members[0].name);
+        }
+        setCycleInfoLoaded(true);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'לא ניתן לטעון את נתוני הרישום');
       }
     }
     loadData();
-  }, [currentMonth]);
+  }, [selectedMonth]);
 
   const filteredCategories = categories.filter(
     (c) => c.type !== 'income' && (c.name.includes(search) || c.group_name.includes(search))

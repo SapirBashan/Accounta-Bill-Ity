@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import { getUserCategories } from '@/lib/category-data';
-import { getHouseholdOwnerId } from '@/lib/household';
+import { getHouseholdMembersForUser, getHouseholdOwnerId } from '@/lib/household';
 import {
   DEFAULT_BILLING_CYCLE_START_DAY,
   getBillingCycleRange,
@@ -436,6 +436,77 @@ export async function getCategoryCardSummaries(monthYearStr: string) {
     spent: spentMap[cat.id] || 0,
     budget: budgetMap[cat.id] ?? 0,
   }));
+}
+
+export async function getQuickAddPageData(requestedMonth?: string) {
+  const supabase = await getSupabaseServer();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error(`לא ניתן לטעון את המשתמש: ${authError.message}`);
+  if (!authData.user) {
+    return {
+      currentMonth: getCurrentBillingMonth(DEFAULT_BILLING_CYCLE_START_DAY),
+      cycleStartDay: DEFAULT_BILLING_CYCLE_START_DAY,
+      categories: [],
+      members: [],
+    };
+  }
+
+  const ownerId = await getHouseholdOwnerId(supabase, authData.user.id);
+  const [cycleStartDay, allCategories, members] = await Promise.all([
+    getHouseholdBillingCycleStartDay(supabase, ownerId),
+    getUserCategories(supabase, ownerId),
+    getHouseholdMembersForUser(supabase, authData.user),
+  ]);
+  const currentMonth = getCurrentBillingMonth(cycleStartDay);
+  const month = isBillingMonth(requestedMonth) ? requestedMonth : currentMonth;
+  const { startDate, nextStartDate } = getBillingCycleRange(month, cycleStartDay);
+  const budgetMonth = `${month}-01`;
+  const categories = allCategories.filter((category) => category.active);
+
+  const [transactionResult, budgetResult] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('amount, category_id')
+      .eq('user_id', ownerId)
+      .gte('date', startDate)
+      .lt('date', nextStartDate),
+    supabase
+      .from('monthly_budgets')
+      .select('category_id, planned_amount')
+      .eq('user_id', ownerId)
+      .eq('month', budgetMonth),
+  ]);
+  if (transactionResult.error) {
+    throw new Error(`לא ניתן לטעון את התנועות: ${transactionResult.error.message}`);
+  }
+  if (budgetResult.error) {
+    throw new Error(`לא ניתן לטעון את התקציבים: ${budgetResult.error.message}`);
+  }
+
+  const spentByCategory = new Map<string, number>();
+  transactionResult.data.forEach((transaction) => {
+    spentByCategory.set(
+      transaction.category_id,
+      (spentByCategory.get(transaction.category_id) || 0) + (Number(transaction.amount) || 0),
+    );
+  });
+  const budgetByCategory = new Map(
+    budgetResult.data.map((budget) => [budget.category_id, Number(budget.planned_amount) || 0]),
+  );
+
+  return {
+    currentMonth,
+    cycleStartDay,
+    members,
+    categories: categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      group_name: category.group_name,
+      type: category.type,
+      spent: spentByCategory.get(category.id) || 0,
+      budget: budgetByCategory.get(category.id) ?? 0,
+    })),
+  };
 }
 /**
  * Get budget vs spent totals categorized per user or for all family members
